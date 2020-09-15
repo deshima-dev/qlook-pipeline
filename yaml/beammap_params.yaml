@@ -1,0 +1,41 @@
+file:
+  outdir: /Users/tsuyoshi/Documents/qlook/results # output directory
+
+loaddfits: # parameters for dc.io.loaddfits()
+  coordtype: azel
+  starttime: 1500
+  endtime: -1300
+  mode: 0
+  loadtype: temperature
+  findR: True
+  Rth: 270
+  skyth: 130
+  ch: 0
+  cutnum: 20
+
+check_scantypes:
+  tstart0: 3000 # time index in the beginning to check the R assignment
+  tend0: 7000   # time index in the end to check the R assingment
+  tstart1: 5000 # time index in the beginning to check the SCAN, TRAN, ACC, and GRAD assignment
+  tend1: 10000  # time index in the end to check the SCAN, TRAN, ACC, and GRAD assignment
+
+calibration:
+  Tamb: 273 # ambient temparature for dc.models.chopper_calibration()
+  refch: 30 # reference channel for the calibration check
+
+imaging:
+  gx: 0.00125 # grid size of x for dc.tocube()
+  gy: 0.00125 # grid size of y for dc.tocube()
+  exchs: [16, 18, 44, 46] # channels to be excluded in makecontinuum()
+
+fitting: # initial values for the continuum fitting
+  amplitude: 1         # peak value
+  x_mean: -0.000924756 # mean of x
+  y_mean: -0.000636774 # mean of y
+  x_stddev: 0.003      # standard deviation of x
+  y_stddev: 0.003      # standard deviation of y
+  theta: 1.25          # position angle
+
+planet:
+  istart: 1000 # line index in the beginning of fluxtxt
+  iend: 1100   # line index in the end of fluxtxt

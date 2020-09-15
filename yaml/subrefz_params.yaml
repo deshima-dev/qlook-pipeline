@@ -1,0 +1,21 @@
+file:
+  outdir: /Users/tsuyoshi/Documents/qlook/results # output directory
+
+loaddfits: # parameters for dc.io.loaddfits()
+  coordtype: azel
+  mode: 0
+  loadtype: temperature
+
+check_scantypes:
+  tstart0: 0    # time index in the beginning
+  tend0: -1     # time index in the end
+  tstart1: 2000 # time index in the beginning (zoom in)
+  tend1: 3000   # time index in the end (zoom in)
+  refch: 47     # reference channel
+
+fitting: # initial values for the continuum fitting
+  amplitude: 5   # peak value
+  x_mean: -3.5   # mean of x
+  x_stddev: 1.0  # standard deviation of x
+  slope: 0       # slope
+  intercept: 40  # intercept

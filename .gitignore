@@ -1,5 +1,8 @@
 # Editor settings
 .vscode
+data/
+results/
+snippet/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
