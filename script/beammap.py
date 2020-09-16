@@ -16,6 +16,7 @@ plt.style.use('seaborn-darkgrid')
 plt.style.use('seaborn-muted')
 from astropy import table
 from astropy.io import fits
+import astropy.units as u
 try:
     from tqdm import tqdm
 except ModuleNotFoundError:
@@ -42,8 +43,8 @@ with open(ymlname) as file:
     ymldata = yaml.load(file, Loader=yaml.SafeLoader)
 
 ##### directory settings
-obsid     = dfitsname.name.split('_')[1].split('.')[0]
-outdir    = pathlib.Path(ymldata['file']['outdir']) / obsid
+obsid  = dfitsname.name.split('_')[1].split('.')[0]
+outdir = pathlib.Path(ymldata['file']['outdir']) / obsid
 if not outdir.exists():
     outdir.mkdir(parents=True)
 dcontname = outdir / f'dcont_{obsid}.fits'
@@ -51,6 +52,9 @@ dcubename = outdir / f'dcube_{obsid}.fits'
 cubedir   = outdir / 'cube'
 if not cubedir.exists():
     cubedir.mkdir()
+outtxt = outdir / ymldata['file']['outtxt']
+imgfmt = ymldata['file']['imgfmt']
+pltflg = ymldata['file']['pltflg']
 
 ##### dc.io.loaddfits parameters
 coordtype = ymldata['loaddfits']['coordtype']
@@ -78,7 +82,9 @@ array = dc.io.loaddfits(
             cutnum=cutnum
         )
 
-##### check automatic R/SKY assignment
+##### 1st step: check automatic R/SKY assignment
+print('#1: automatic R/SKY assignment')
+
 scantypes = np.unique(array.scantype)
 Tr = array[array.scantype == 'R'][:, ch].values.mean()
 
@@ -113,17 +119,17 @@ dc.plot.plot_timestream(subarray1, kidid=ch, xtick=xtick, scantypes=['GRAD'], ax
                         marker=marker, linestyle=linestyle)
 
 fig.tight_layout()
-fig.savefig(outdir / f'timestream_{obsid}.png')
-plt.show()
-
-if input('proceed to calibration? [y]/n: ' ) in ['n', 'N']:
-    sys.exit()
+fig.savefig(outdir / f'timestream_{obsid}.{imgfmt}')
+if pltflg:
+    plt.show()
 else:
-    pass
+    plt.clf()
+    plt.close()
 
-##### advanced baseline fit
+##### 2nd step: advanced baseline fit
+print('#2: advanced baseline fit')
+
 Tamb = ymldata['calibration']['Tamb']
-
 scanarray = array[array.scantype == 'SCAN']
 offarray  = array[array.scantype == 'ACC']
 rarray    = array[array.scantype == 'R']
@@ -150,18 +156,14 @@ for sid in np.unique(array.scanid):
 times = np.array(times).astype(float)
 medians = np.array(medians).astype(float)
 medians[np.isnan(medians)] = 0
-
 blarray = interp1d(times, medians, axis=0, kind='cubic', fill_value='extrapolate')(array.time.astype(float))
 blarray = dc.full_like(array, blarray)
-
 scanarray_cal2 = (Tr * (array - blarray) / (Tr - blarray))[array.scantype == 'SCAN']
 scanarray_cal3 = scanarray_cal2.copy()
 scanarray_cal3.values = scanarray_cal2.values - np.nanmean(offarray_cal.values)
 
-##### difference between normal chopper calibration and advanced baseline fitting
 fig, ax = plt.subplots(3, 1, figsize=(10, 7))
-
-refch = ymldata['calibration']['refch']
+refch   = ymldata['calibration']['refch']
 
 dc.plot.plot_timestream(scanarray_cal, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax[0])
 dc.plot.plot_timestream(scanarray_cal3, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax[1])
@@ -171,15 +173,16 @@ ax[1].set_title(f'advanced baseline fitting ch #{refch}')
 ax[2].set_title(f'chopper calibration - advanced baseline fitting ch #{refch}')
 
 fig.tight_layout()
-fig.savefig(outdir / f'calibration_{obsid}.png')
-plt.show()
-
-if input('proceed to imaging? [y]/n: ' ) in ['n', 'N']:
-    sys.exit()
+fig.savefig(outdir / f'calibration_{obsid}.{imgfmt}')
+if pltflg:
+    plt.show()
 else:
-    pass
+    plt.clf()
+    plt.close()
 
-##### make cube
+##### 3rd step: make cube/continuum
+print('#3: make cube/continuum')
+
 gx = ymldata['imaging']['gx']
 gy = ymldata['imaging']['gy']
 xmin = scanarray_cal3.x.min().values
@@ -189,7 +192,6 @@ ymax = scanarray_cal3.y.max().values
 cube2 = dc.tocube(scanarray_cal3, gx=gx, gy=gy, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 dc.io.savefits(cube2, dcubename, overwrite=True)
 
-##### make continuum
 exchs = ymldata['imaging']['exchs']
 mask  = np.full_like(scanarray_cal3.kidid.values, True, dtype=np.bool)
 mask[exchs] = False
@@ -200,12 +202,9 @@ weight   = dc.ones_like(subcube2)
 cont2    = fc.makecontinuum(subcube2, weight=weight)
 dc.io.savefits(cont2, dcontname, dropdeg=True, overwrite=True)
 
-if input('proceed to continuum fitting? [y]/n: ' ) in ['n', 'N']:
-    sys.exit()
-else:
-    pass
+##### 4th step: 2D-Gauss fit on the continuum map
+print('#4: 2D-Gauss fit on the continuum map')
 
-##### 2D-gauss fit on the continuum map
 amplitude = ymldata['fitting']['amplitude']
 x_mean    = ymldata['fitting']['x_mean']
 y_mean    = ymldata['fitting']['y_mean']
@@ -223,7 +222,6 @@ f = fc.gauss_fit(cont2,
                  y_stddev=y_stddev,
                  theta=theta)
 
-##### show HPBW
 sigma2hpbw = 2 * np.sqrt(2 * np.log(2))
 hpbw_major_arcsec = float(f.x_stddev * 3600 * sigma2hpbw)
 hpbw_major_rad    = float(f.x_stddev * sigma2hpbw * np.pi / 180)
@@ -232,30 +230,30 @@ hpbw_minor_rad    = float(f.y_stddev * sigma2hpbw * np.pi / 180)
 print(f'hpbw_major: {hpbw_major_arcsec:.1f} [arcsec], {hpbw_major_rad:.1e} [rad]')
 print(f'hpbw_minor: {hpbw_minor_arcsec:.1f} [arcsec], {hpbw_minor_rad:.1e} [rad]')
 
-##### beam map on the continuum
 plt.style.use('seaborn-dark')
 fig, ax = plt.subplots(1, 3, figsize=(15, 5))
 
 cmap = 'viridis'
 ax[0].imshow(cont2[:, :, 0], cmap=cmap)
 ax[0].set_title('Observation')
-
 ax[1].imshow(f[:, :, 0], cmap=cmap)
 ax[1].set_title('Model')
-
 ax[2].imshow(cube2[:, :, 0] - f[:, :, 0], cmap=cmap)
 ax[2].set_title('Residual')
 
 fig.tight_layout()
-fig.savefig(outdir / f'contfit_{obsid}.png')
-plt.show()
-
-if input('proceed to cube fitting? [y]/n: ' ) in ['n', 'N']:
-    sys.exit()
+fig.savefig(outdir / f'contfit_{obsid}.{imgfmt}')
+if pltflg:
+    plt.show()
 else:
-    pass
+    plt.clf()
+    plt.close()
 
-##### 2D-Gauss fit ono the cube map
+##### 5th step: 2D-Gauss fit on the cube map
+print('#5: 2D-Gauss fit on the cube map')
+
+alldata = table.QTable()
+
 h = fc.gauss_fit(cube2,
                  mode='deg',
                  amplitude=f.peak,
@@ -274,11 +272,33 @@ for exch in exchs:
     h.y_stddev[exch] = np.nan
     h.theta[exch]    = np.nan
 
-##### beam map on the cube
+freqdata        = np.sort(h.kidfq) * u.GHz
+freqdata_sub    = freqdata[~np.isnan(freqdata)]
+peakdata        = h.peak[np.argsort(h.kidfq)] * u.K     # temperature
+peakdata_sub    = peakdata[~np.isnan(freqdata)]
+xmeandata       = h.x_mean[np.argsort(h.kidfq)] * u.deg # degree
+xmeandata_sub   = xmeandata[~np.isnan(freqdata)]
+ymeandata       = h.y_mean[np.argsort(h.kidfq)] * u.deg # degree
+ymeandata_sub   = ymeandata[~np.isnan(freqdata)]
+xstddevdata     = h.x_stddev[np.argsort(h.kidfq)] * u.deg # degree
+xstddevdata_sub = xstddevdata[~np.isnan(freqdata)]
+ystddevdata     = h.y_stddev[np.argsort(h.kidfq)] * u.deg # degree
+ystddevdata_sub = ystddevdata[~np.isnan(freqdata)]
+thetadata       = h.theta[np.argsort(h.kidfq)] * u.rad # radian
+thetadata_sub   = thetadata[~np.isnan(freqdata)]
+
+alldata['freqency'] = freqdata_sub
+alldata['peak']     = peakdata_sub
+alldata['x_mean']   = xmeandata_sub
+alldata['y_mean']   = ymeandata_sub
+alldata['x_stddev'] = xstddevdata_sub
+alldata['y_stddev'] = ystddevdata_sub
+alldata['theta']    = thetadata_sub
+
 if isTqdmInstalled:
-    iterator = tqdm(range(len(h.kidfq[h.kidtp == 1])))
+    iterator = tqdm(range(len(h.kidfq[(h.kidtp != 0) & (h.kidtp != 2)])))
 else:
-    iterator = range(len(h.kidfq[h.kidtp == 1]))
+    iterator = range(len(h.kidfq[(h.kidtp != 0) & (h.kidtp != 2)]))
 for i in iterator:
     fig, ax = plt.subplots(1, 3, figsize=(15, 5))
 
@@ -291,16 +311,13 @@ for i in iterator:
     plt.suptitle(f'ch #{7+i}')
     
     fig.tight_layout()
-    fig.savefig(cubedir / f'cubefit_#{7+i}_{obsid}.png')
-    fig.clf() # is it correct?
-    plt.close() # is it correct?
+    fig.savefig(cubedir / f'cubefit_#{7+i}_{obsid}.{imgfmt}')
+    plt.clf()
+    plt.close()
 
-if input('proceed to planet properties? [y]/n: ' ) in ['n', 'N']:
-    sys.exit()
-else:
-    pass
+##### 6th step: planet propeties
+print('#6: planet properties')
 
-##### Mars propeties
 plt.style.use('seaborn-darkgrid')
 
 data   = np.loadtxt(fluxtxt, comments='#', usecols = (1, 2, 3, 4, 5, 6))
@@ -326,24 +343,31 @@ ax[1].set_xlabel('freqency [GHz]')
 ax[1].set_ylabel('Tb [K]')
 
 fig.tight_layout()
-fig.savefig(outdir / f'planet_{obsid}.png')
-plt.show()
+fig.savefig(outdir / f'planet_{obsid}.{imgfmt}')
+if pltflg:
+    plt.show()
+else:
+    plt.clf()
+    plt.close()
 
 f_omega_s = 0.7854
 omega_mb  = float(np.pi / (4 * np.log(2)) * \
             (f.x_stddev * 3600 * sigma2hpbw) * (f.y_stddev * 3600 * sigma2hpbw)) ### [arcsec**2]
 c = xr.DataArray(mm(h.kidfq) * ll(h.kidfq)**2 * f_omega_s / omega_mb, dims='ch')
 
-if input('proceed to beam properties? [y]/n: ' ) in ['n', 'N']:
-    sys.exit()
-else:
-    pass
+##### 7th step: beam FWHM vs frequency
+print('#7: beam FWHM')
 
-##### beam FWHM vs frequency
 fig, ax = plt.subplots(2, 1, figsize=(10, 5))
 
 hpbw_major = np.sqrt(((h.x_stddev * 3600 * sigma2hpbw)**2) - np.log(2) / 2 * theta_s**2)
 hpbw_minor = np.sqrt(((h.y_stddev * 3600 * sigma2hpbw)**2) - np.log(2) / 2 * theta_s**2)
+
+hpbw_major_sub = hpbw_major[~np.isnan(freqdata)] * u.arcsec # deconvolved
+hpbw_minor_sub = hpbw_minor[~np.isnan(freqdata)] * u.arcsec # deconvolved
+
+alldata['HPBW_maj'] = hpbw_major_sub
+alldata['HPBW_min'] = hpbw_minor_sub
 
 ax[0].errorbar(np.sort(h.kidfq),
                h.x_stddev[np.argsort(h.kidfq)] * 3600 * sigma2hpbw,
@@ -374,15 +398,16 @@ ax[1].set_ylabel('HPBW min [arcsec]')
 ax[1].legend()
 
 fig.tight_layout()
-fig.savefig(outdir / f'beam_{obsid}.png')
-plt.show()
-
-if input('proceed to beam efficiency? [y]/n: ' ) in ['n', 'N']:
-    sys.exit()
+fig.savefig(outdir / f'beam_{obsid}.{imgfmt}')
+if pltflg:
+    plt.show()
 else:
-    pass
+    plt.clf()
+    plt.close()
 
-##### calculate main beam efficiency
+##### 8th step: calculate main beam efficiency
+print('#8: main beam efficiency')
+
 eta    = np.array([])
 eta_er = np.array([])
 freq   = np.sort(h.kidfq.values[h.kidtp == 1])
@@ -396,7 +421,8 @@ for i in range(len(h.kidfq[h.kidtp == 1])):
 eta_med = np.nanmedian(eta)
 print(f'eta_median: {eta_med:.2f}')
 
-##### plot main beam efficiency
+alldata['beam_efficiency'] = eta
+
 fig, ax = plt.subplots(1, 1, figsize=(10, 5))
 
 ax.errorbar(h.kidfq[h.kidtp == 1][np.argsort(h.kidfq.values[h.kidtp == 1])],
@@ -410,5 +436,11 @@ ax.set_ylabel('$\eta_{mb}$')
 ax.legend()
 
 fig.tight_layout()
-fig.savefig(outdir / f'eta_{obsid}.png')
-plt.show()
+fig.savefig(outdir / f'eta_{obsid}.{imgfmt}')
+if pltflg:
+    plt.show()
+else:
+    plt.clf()
+    plt.close()
+
+alldata.write(outtxt, format='ascii', overwrite=True)
