@@ -2,7 +2,6 @@
 import warnings
 warnings.filterwarnings('ignore')
 import argparse
-import sys
 import pathlib
 import yaml
 
@@ -287,13 +286,13 @@ ystddevdata_sub = ystddevdata[~np.isnan(freqdata)]
 thetadata       = h.theta[np.argsort(h.kidfq)] * u.rad # radian
 thetadata_sub   = thetadata[~np.isnan(freqdata)]
 
-alldata['freqency'] = freqdata_sub
-alldata['peak']     = peakdata_sub
-alldata['x_mean']   = xmeandata_sub
-alldata['y_mean']   = ymeandata_sub
-alldata['x_stddev'] = xstddevdata_sub
-alldata['y_stddev'] = ystddevdata_sub
-alldata['theta']    = thetadata_sub
+alldata['frequency'] = freqdata_sub
+alldata['peak']      = peakdata_sub
+alldata['x_mean']    = xmeandata_sub
+alldata['y_mean']    = ymeandata_sub
+alldata['x_stddev']  = xstddevdata_sub
+alldata['y_stddev']  = ystddevdata_sub
+alldata['theta']     = thetadata_sub
 
 if isTqdmInstalled:
     iterator = tqdm(range(len(h.kidfq[(h.kidtp != 0) & (h.kidtp != 2)])))
@@ -332,14 +331,14 @@ theta_s = data[istart:iend, 1].mean()
 
 ax[0].plot(data[istart:iend, 0], data[istart:iend, 1], '.')
 ax[0].plot(data[istart:iend, 0], ll(x), 'k-') 
-ax[0].set_xlabel('freqency [GHz]')
+ax[0].set_xlabel('frequency [GHz]')
 ax[0].set_ylabel('angular diameter [arcsec]')
 
 mm = interp1d(data[istart:iend, 0], data[istart:iend, 2], kind='cubic')
 
 ax[1].plot(data[istart:iend, 0], data[istart:iend, 2], '.')
 ax[1].plot(data[istart:iend, 0], mm(x), 'k-') 
-ax[1].set_xlabel('freqency [GHz]')
+ax[1].set_xlabel('frequency [GHz]')
 ax[1].set_ylabel('Tb [K]')
 
 fig.tight_layout()
@@ -379,7 +378,7 @@ ax[0].errorbar(np.sort(h.kidfq),
                yerr=h.uncert1[np.argsort(h.kidfq)] * 3600 * sigma2hpbw,
                fmt='o-',
                label='deconvolved')
-ax[0].set_xlabel('freqency [GHz]')
+ax[0].set_xlabel('frequency [GHz]')
 ax[0].set_ylabel('HPBW maj [arcsec]')
 ax[0].legend()
 
@@ -393,7 +392,7 @@ ax[1].errorbar(np.sort(h.kidfq),
                yerr=h.uncert2[np.argsort(h.kidfq)] * 3600 * sigma2hpbw,
                fmt='o-',
                label='deconvolved')
-ax[1].set_xlabel('freqency [GHz]')
+ax[1].set_xlabel('frequency [GHz]')
 ax[1].set_ylabel('HPBW min [arcsec]')
 ax[1].legend()
 

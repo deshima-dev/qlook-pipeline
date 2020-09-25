@@ -1,5 +1,8 @@
 file:
-  outdir: /Users/tsuyoshi/Documents/qlook/results # output directory
+  outdir: /Users/tsuyoshi/Documents/deshima-dev/qlook-pipeline/results # output directory
+  outtxt: results.txt
+  imgfmt: png   # image format (pdf, png, svg, ...etc)
+  pltflg: False # plot flag
 
 loaddfits: # parameters for dc.io.loaddfits()
   coordtype: azel
@@ -15,7 +18,7 @@ check_scantypes:
 
 fitting: # initial values for the continuum fitting
   amplitude: 5   # peak value
-  x_mean: -3.5   # mean of x
-  x_stddev: 1.0  # standard deviation of x
+  z_mean: -3.5   # mean of z
+  z_stddev: 1.0  # standard deviation of z
   slope: 0       # slope
   intercept: 40  # intercept
