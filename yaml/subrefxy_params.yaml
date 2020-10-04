@@ -1,0 +1,40 @@
+file:
+  outdir: /Users/tsuyoshi/Documents/deshima-dev/qlook-pipeline/results # output directory
+  outtxt: results.txt
+  imgfmt: png   # image format (pdf, png, svg, ...etc)
+  pltflg: True # plot flag
+
+loaddfits: # parameters for dc.io.loaddfits()
+  coordtype: azel
+  starttime: 1500
+  endtime: -1300
+  mode: 0
+  loadtype: temperature
+  findR: False
+  Rth: 270
+  skyth: 130
+  ch: 0
+  cutnum: 2
+
+check_scantypes:
+  tstart0: 0    # time index in the beginning to check the R assignment
+  tend0: -1     # time index in the end to check the R assingment
+  tstart1: 0    # time index in the beginning to check the SCAN, TRAN, ACC, and GRAD assignment
+  tend1: -1     # time index in the end to check the SCAN, TRAN, ACC, and GRAD assignment
+
+calibration:
+  Tamb: 273 # ambient temparature for dc.models.chopper_calibration()
+  refch: 30 # reference channel for the calibration check
+
+imaging:
+  gx: 0.00175 # grid size of x for dc.tocube()
+  gy: 0.00175 # grid size of y for dc.tocube()
+  exchs: [16, 18, 44, 46] # channels to be excluded in makecontinuum()
+
+fitting: # initial values for the continuum fitting
+  amplitude: 5         # peak value
+  x_mean: 0 # mean of x
+  y_mean: 0 # mean of y
+  x_stddev: 0.001      # standard deviation of x
+  y_stddev: 0.001      # standard deviation of y
+  theta: 1.0          # position angle

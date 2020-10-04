@@ -4,6 +4,7 @@ warnings.filterwarnings('ignore')
 import argparse
 import pathlib
 import yaml
+import sys
 
 # dependent packages
 import decode as dc
@@ -155,9 +156,12 @@ for sid in np.unique(array.scanid):
 times = np.array(times).astype(float)
 medians = np.array(medians).astype(float)
 medians[np.isnan(medians)] = 0
+
 blarray = interp1d(times, medians, axis=0, kind='cubic', fill_value='extrapolate')(array.time.astype(float))
 blarray = dc.full_like(array, blarray)
-scanarray_cal2 = (Tr * (array - blarray) / (Tr - blarray))[array.scantype == 'SCAN']
+
+# scanarray_cal2 = (Tr * (array - blarray) / (Tr - blarray))[array.scantype == 'SCAN']
+scanarray_cal2 = (Tamb * (array - blarray) / (Tr - blarray))[array.scantype == 'SCAN']
 scanarray_cal3 = scanarray_cal2.copy()
 scanarray_cal3.values = scanarray_cal2.values - np.nanmean(offarray_cal.values)
 
@@ -165,11 +169,13 @@ fig, ax = plt.subplots(3, 1, figsize=(10, 7))
 refch   = ymldata['calibration']['refch']
 
 dc.plot.plot_timestream(scanarray_cal, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax[0])
-dc.plot.plot_timestream(scanarray_cal3, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax[1])
-dc.plot.plot_timestream(scanarray_cal - scanarray_cal3, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax[2])
+dc.plot.plot_timestream(scanarray_cal2, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax[1])
+dc.plot.plot_timestream(scanarray_cal3, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax[2])
+# dc.plot.plot_timestream(scanarray_cal - scanarray_cal3, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax[3])
 ax[0].set_title(f'chppper calibration ch #{refch}')
 ax[1].set_title(f'advanced baseline fitting ch #{refch}')
-ax[2].set_title(f'chopper calibration - advanced baseline fitting ch #{refch}')
+ax[2].set_title(f'advanced baseline fitting II ch #{refch}')
+# ax[2].set_title(f'chopper calibration - advanced baseline fitting ch #{refch}')
 
 fig.tight_layout()
 fig.savefig(outdir / f'calibration_{obsid}.{imgfmt}')
@@ -233,11 +239,11 @@ plt.style.use('seaborn-dark')
 fig, ax = plt.subplots(1, 3, figsize=(15, 5))
 
 cmap = 'viridis'
-ax[0].imshow(cont2[:, :, 0], cmap=cmap)
+ax[0].imshow(cont2[:, :, 0].T, cmap=cmap)
 ax[0].set_title('Observation')
-ax[1].imshow(f[:, :, 0], cmap=cmap)
+ax[1].imshow(f[:, :, 0].T, cmap=cmap)
 ax[1].set_title('Model')
-ax[2].imshow(cube2[:, :, 0] - f[:, :, 0], cmap=cmap)
+ax[2].imshow(cube2[:, :, 0].T - f[:, :, 0].T, cmap=cmap)
 ax[2].set_title('Residual')
 
 fig.tight_layout()
@@ -301,11 +307,11 @@ else:
 for i in iterator:
     fig, ax = plt.subplots(1, 3, figsize=(15, 5))
 
-    ax[0].imshow(cube2[:, :, 7+i], cmap=cmap)
+    ax[0].imshow(cube2[:, :, 7+i].T, cmap=cmap)
     ax[0].set_title('Observation')
-    ax[1].imshow(h[:, :, 7+i], cmap=cmap)
+    ax[1].imshow(h[:, :, 7+i].T, cmap=cmap)
     ax[1].set_title('Model')
-    ax[2].imshow(cube2[:, :, 7+i] - h[:, :, 7+i], cmap=cmap)
+    ax[2].imshow(cube2[:, :, 7+i].T - h[:, :, 7+i].T, cmap=cmap)
     ax[2].set_title('Residual')
     plt.suptitle(f'ch #{7+i}')
     
