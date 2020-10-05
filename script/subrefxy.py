@@ -4,7 +4,6 @@ warnings.filterwarnings('ignore')
 import argparse
 import pathlib
 import yaml
-import sys
 
 # dependent packages
 import decode as dc
@@ -17,6 +16,7 @@ plt.style.use('seaborn-muted')
 from astropy import table
 from astropy.io import fits
 import astropy.units as u
+import aplpy
 
 # original package
 import functions as fc
@@ -24,153 +24,106 @@ import functions as fc
 
 ##### command line arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('dfitsname', help='DFITS name')
-parser.add_argument('antname', help='antenna log')
-parser.add_argument('ymlname', help='parameter file')
+parser.add_argument('dfits_file', help='DFITS name')
+parser.add_argument('antlog_file', help='antenna log')
+parser.add_argument('yaml_file', help='parameter file')
 args = parser.parse_args()
 
-dfitsname = pathlib.Path(args.dfitsname)
-antname   = pathlib.Path(args.antname)
-ymlname   = pathlib.Path(args.ymlname)
-with open(ymlname) as file:
-    ymldata = yaml.load(file, Loader=yaml.SafeLoader)
+dfits_file  = pathlib.Path(args.dfits_file)
+antlog_file = pathlib.Path(args.antlog_file)
+yaml_file   = pathlib.Path(args.yaml_file)
+with open(yaml_file) as file:
+    params = yaml.load(file, Loader=yaml.SafeLoader)
 
 ##### directory settings
-obsid  = dfitsname.name.split('_')[1].split('.')[0]
-outdir = pathlib.Path(ymldata['file']['outdir']) / obsid
-if not outdir.exists():
-    outdir.mkdir(parents=True)
-dcontname = outdir / f'dcont_{obsid}.fits'
-dcubename = outdir / f'dcube_{obsid}.fits'
-# cubedir   = outdir / 'cube'
-# if not cubedir.exists():
-#     cubedir.mkdir()
-outtxt = outdir / ymldata['file']['outtxt']
-imgfmt = ymldata['file']['imgfmt']
-pltflg = ymldata['file']['pltflg']
+obsid      = dfits_file.name.split('_')[1].split('.')[0]
+output_dir = pathlib.Path(params['file']['output_dir']) / obsid
+if not output_dir.exists():
+    output_dir.mkdir(parents=True)
+cont_obs_fits = output_dir / f'continuum_obs.fits'
+cube_obs_fits = output_dir / f'cube_obs.fits'
+cont_mod_fits = output_dir / f'continuum_model.fits'
+cont_res_fits = output_dir / f'continuum_residual.fits'
+result_file   = output_dir / params['file']['result_file']
+image_format  = params['file']['image_format']
+do_plot       = params['file']['do_plot']
+dpi           = params['file']['dpi']
 
 ##### fc.loaddfits parameters
-coordtype = ymldata['loaddfits']['coordtype']
-starttime = ymldata['loaddfits']['starttime']
-endtime   = ymldata['loaddfits']['endtime']
-mode      = ymldata['loaddfits']['mode']
-loadtype  = ymldata['loaddfits']['loadtype']
-findR     = ymldata['loaddfits']['findR']
-Rth       = ymldata['loaddfits']['Rth']
-skyth     = ymldata['loaddfits']['skyth']
-ch        = ymldata['loaddfits']['ch']
-cutnum    = ymldata['loaddfits']['cutnum']
-
-array = fc.loaddfits(
-            dfitsname,
-            antname,
-            coordtype=coordtype,
-            starttime=starttime,
-            endtime=endtime,
-            mode=mode,
-            loadtype=loadtype,
-            findR=findR,
-            Rth=Rth,
-            skyth=skyth,
-            ch=ch,
-            cutnum=cutnum
-        )
+ch = params['loaddfits']['ch']
+array = fc.loaddfits(dfits_file, antlog_file, **params['loaddfits'])
 
 ##### 1st step: check automatic R/SKY assignment
 print('#1: automatic R/SKY assignment')
 
 scantypes = np.unique(array.scantype)
-# Tr = array[array.scantype == 'R'][:, ch].values.mean()
-Tr = 290
-
+if 'R' in scantypes:
+    Tr = array[array.scantype=='R'][:, ch].values.mean()
+else:
+    Tr = 290.0
 print(f'scantypes: {scantypes}')
 print(f'Tr: {Tr:.1f} [K]')
 
-fig, ax = plt.subplots(2, 1, figsize=(10, 5))
-tstart0 = ymldata['check_scantypes']['tstart0']
-tend0   = ymldata['check_scantypes']['tend0']
-tstart1 = ymldata['check_scantypes']['tstart1']
-tend1   = ymldata['check_scantypes']['tend1']
+fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
+tstart0 = params['check_scantypes']['tstart0']
+tend0   = params['check_scantypes']['tend0']
+tstart1 = params['check_scantypes']['tstart1']
+tend1   = params['check_scantypes']['tend1']
 subarray0 = array[tstart0:tend0, :]
 subarray1 = array[tstart1:tend1, :]
 
-xtick  = 'time'
-marker = '.'
-linestyle  = 'None'
+plot_params0 = {'marker': '.', 'markersize': 0.5, 'linewidth': 0.5}
+plot_params1 = {'marker': '.', 'markersize': 0.5, 'linestyle': 'None'}
 
-dc.plot.plot_timestream(subarray0, kidid=ch, xtick=xtick, scantypes=None, ax=ax[0],
-                        marker=marker)
-dc.plot.plot_timestream(subarray0, kidid=ch, xtick=xtick, scantypes=['R'], ax=ax[0],
-                        marker=marker, linestyle=linestyle)
-dc.plot.plot_timestream(subarray1, kidid=ch, xtick=xtick, scantypes=None, ax=ax[1],
-                        marker=marker)
-dc.plot.plot_timestream(subarray1, kidid=ch, xtick=xtick, scantypes=['SCAN'], ax=ax[1],
-                        marker=marker, linestyle=linestyle)
-dc.plot.plot_timestream(subarray1, kidid=ch, xtick=xtick, scantypes=['TRAN'], ax=ax[1],
-                        marker=marker, linestyle=linestyle)
-dc.plot.plot_timestream(subarray1, kidid=ch, xtick=xtick, scantypes=['ACC'], ax=ax[1],
-                        marker=marker, linestyle=linestyle)
-dc.plot.plot_timestream(subarray1, kidid=ch, xtick=xtick, scantypes=['GRAD'], ax=ax[1],
-                        marker=marker, linestyle=linestyle)
+dc.plot.plot_timestream(subarray0, ch,                  ax=ax[0], **plot_params0)
+dc.plot.plot_timestream(subarray0, ch, scantypes=['R'], ax=ax[0], **plot_params1)
+
+dc.plot.plot_timestream(subarray1, ch,                     ax=ax[1], **plot_params0)
+dc.plot.plot_timestream(subarray1, ch, scantypes=['SCAN'], ax=ax[1], **plot_params1)
+dc.plot.plot_timestream(subarray1, ch, scantypes=['TRAN'], ax=ax[1], **plot_params1)
+dc.plot.plot_timestream(subarray1, ch, scantypes=['ACC'],  ax=ax[1], **plot_params1)
+dc.plot.plot_timestream(subarray1, ch, scantypes=['GRAD'], ax=ax[1], **plot_params1)
 
 fig.tight_layout()
-fig.savefig(outdir / f'timestream_{obsid}.{imgfmt}')
-if pltflg:
+fig.savefig(output_dir / f'time_stream.{image_format}')
+if do_plot:
     plt.show()
 else:
     plt.clf()
     plt.close()
-
-# sys.exit()
 
 ##### 2nd step: plot subref offsets vs time
 print('#2: plot subref offsets vs time')
 
-fig, ax = plt.subplots(3, 1, figsize=(10, 7))
-dc.plot.plot_tcoords(array, coords=('time', 'subref_x') ,scantypes=['SCAN'], ax=ax[0])
-dc.plot.plot_tcoords(array, coords=('time', 'subref_y') ,scantypes=['SCAN'], ax=ax[1])
-dc.plot.plot_tcoords(array, coords=('time', 'subref_z') ,scantypes=['SCAN'], ax=ax[2])
-
-# maxid = list(argrelmax(array.subref_z[array.scantype == 'ON'].values, order=1)[0])
-# minid = list(argrelmin(array.subref_z[array.scantype == 'ON'].values, order=1)[0])
-# ax[2].plot(array.time[array.scantype == 'ON'][maxid],
-#            array.subref_z[array.scantype == 'ON'][maxid],
-#            'o', color='C1', label='local max')
-# ax[2].plot(array.time[array.scantype == 'ON'][minid],
-#            array.subref_z[array.scantype == 'ON'][minid],
-#            'o', color='C2', label='local min')
-# ax[2].legend()
+fig, ax = plt.subplots(3, 1, figsize=(10, 7), dpi=dpi)
+dc.plot.plot_tcoords(array, ('time', 'subref_x'), scantypes=['SCAN'], ax=ax[0])
+dc.plot.plot_tcoords(array, ('time', 'subref_y'), scantypes=['SCAN'], ax=ax[1])
+dc.plot.plot_tcoords(array, ('time', 'subref_z'), scantypes=['SCAN'], ax=ax[2])
 
 fig.tight_layout()
-fig.savefig(outdir / f'subrefxyz_vs_time_{obsid}.{imgfmt}')
-if pltflg:
+fig.savefig(output_dir / f'subref_movement.{image_format}')
+if do_plot:
     plt.show()
 else:
     plt.clf()
     plt.close()
 
-# sys.exit()
-
 ##### 3rd step: baseline subtraction
 print('#3: baseline subtraction')
 
-Tamb = ymldata['calibration']['Tamb']
-# scanarray = array[array.scantype == 'SCAN']
-# offarray  = array[array.scantype == 'ACC']
-# rarray    = array[array.scantype == 'R']
-# scanarray_cal, offarray_cal = dc.models.chopper_calibration(scanarray, offarray, rarray, Tamb, mode='mean')
+Tamb = params['calibration']['Tamb']
 
-times = []
+times   = []
 medians = []
 for sid in np.unique(array.scanid):
-    subarray = array[array.scanid == sid]
+    subarray = array[array.scanid==sid]
     scantype = np.unique(subarray.scantype)
-    t = subarray.time.values[int(len(subarray) / 2)]
+    t = subarray.time.values[int(len(subarray)/2)]
     if scantype == 'SCAN':
-        m0 = subarray[:int(1 / 4 * len(subarray))].median('t').values
-        m1 = subarray[int(3 / 4 * len(subarray)):].median('t').values
+        m0 = subarray[:int(1/4 * len(subarray))].median('t').values
+        m1 = subarray[int(3/4 * len(subarray)):].median('t').values
         times.append(t)
-        medians.append((m0 + m1) / 2)
+        medians.append((m0+m1) / 2)
     elif scantype == 'TRAN':
         times.append(t)
         medians.append(subarray.median('t').values)
@@ -178,32 +131,24 @@ for sid in np.unique(array.scanid):
         times.append(t)
         medians.append(subarray.median('t').values)
 
-times = np.array(times).astype(float)
+times   = np.array(times).astype(float)
 medians = np.array(medians).astype(float)
 medians[np.isnan(medians)] = 0
 
 blarray = interp1d(times, medians, axis=0, kind='cubic', fill_value='extrapolate')(array.time.astype(float))
 blarray = dc.full_like(array, blarray)
+scanarray_cal = (Tamb * (array - blarray) / (Tr - blarray))[array.scantype=='SCAN']
 
-scanarray_cal2 = (Tamb * (array - blarray) / (Tr - blarray))[array.scantype == 'SCAN']
-scanarray_cal3 = scanarray_cal2.copy()
-# scanarray_cal3.values = scanarray_cal2.values - np.nanmean(offarray_cal.values)
+fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
 
-# fig, ax = plt.subplots(3, 1, figsize=(10, 7))
-fig, ax = plt.subplots(1, 1, figsize=(10, 5))
-refch   = ymldata['calibration']['refch']
+plot_params = {'linewidth': 0.2}
 
-# dc.plot.plot_timestream(scanarray_cal, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax[0])
-# dc.plot.plot_timestream(scanarray_cal3, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax[1])
-dc.plot.plot_timestream(scanarray_cal3, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax)
-# dc.plot.plot_timestream(scanarray_cal - scanarray_cal3, kidid=refch, xtick=xtick, scantypes=['SCAN'], ax=ax[2])
-# ax[0].set_title(f'chppper calibration ch #{refch}')
-# ax[1].set_title(f'advanced baseline fitting ch #{refch}')
-# ax[2].set_title(f'chopper calibration - advanced baseline fitting ch #{refch}')
+dc.plot.plot_timestream(array,         ch, scantypes=['SCAN'], ax=ax[0], **plot_params)
+dc.plot.plot_timestream(scanarray_cal, ch, scantypes=['SCAN'], ax=ax[1], **plot_params)
 
 fig.tight_layout()
-fig.savefig(outdir / f'calibration_{obsid}.{imgfmt}')
-if pltflg:
+fig.savefig(output_dir / f'baseline_subtraction.{image_format}')
+if do_plot:
     plt.show()
 else:
     plt.clf()
@@ -212,38 +157,39 @@ else:
 ##### 4th step: make cube/continuum
 print('#4: make cube/continuum')
 
-gx = ymldata['imaging']['gx']
-gy = ymldata['imaging']['gy']
-xmin = scanarray_cal3.x.min().values
-xmax = scanarray_cal3.x.max().values
-ymin = scanarray_cal3.y.min().values
-ymax = scanarray_cal3.y.max().values
-cube2 = dc.tocube(scanarray_cal3, gx=gx, gy=gy, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
-dc.io.savefits(cube2, dcubename, overwrite=True)
+gx   = params['imaging']['gx']
+gy   = params['imaging']['gy']
+xmin = scanarray_cal.x.min().values
+xmax = scanarray_cal.x.max().values
+ymin = scanarray_cal.y.min().values
+ymax = scanarray_cal.y.max().values
 
-exchs = ymldata['imaging']['exchs']
-mask  = np.full_like(scanarray_cal3.kidid.values, True, dtype=np.bool)
+cube_array = dc.tocube(scanarray_cal, gx=gx, gy=gy, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+dc.io.savefits(cube_array, cube_obs_fits, overwrite=True)
+
+exchs = params['imaging']['exchs']
+mask  = np.full_like(scanarray_cal.kidid.values, True, dtype=np.bool)
 mask[exchs] = False
-mask[np.where(scanarray_cal3.kidtp != 1)] = False
+mask[np.where(scanarray_cal.kidtp != 1)] = False
+masked_cube_array = cube_array[:, :, mask]
 
-subcube2 = cube2[:, :, mask]
-weight   = dc.ones_like(subcube2)
-cont2    = fc.makecontinuum(subcube2, weight=weight)
-dc.io.savefits(cont2, dcontname, dropdeg=True, overwrite=True)
+weight     = dc.ones_like(masked_cube_array)
+cont_array = fc.makecontinuum(masked_cube_array, weight=weight)
+dc.io.savefits(cont_array, cont_obs_fits, dropdeg=True, overwrite=True)
 
 ##### 5th step: 2D-Gauss fit on the continuum map
 print('#5: 2D-Gauss fit on the continuum map')
 
-alldata = table.QTable(names=('subref_x', 'peak', 'x_mean', 'y_mean', 'x_stddev', 'y_stddev', 'theta')) ### <- added
+alldata = table.QTable(names=('subref_x', 'peak', 'x_mean', 'y_mean', 'x_stddev', 'y_stddev', 'theta'))
 
-amplitude = ymldata['fitting']['amplitude']
-x_mean    = ymldata['fitting']['x_mean']
-y_mean    = ymldata['fitting']['y_mean']
-x_stddev  = ymldata['fitting']['x_stddev']
-y_stddev  = ymldata['fitting']['y_stddev']
-theta     = ymldata['fitting']['theta']
+amplitude = float(cont_array.max().values)
+x_mean    = float(cont_array.where(cont_array==cont_array.max(), drop=True).x.values)
+y_mean    = float(cont_array.where(cont_array==cont_array.max(), drop=True).y.values)
+x_stddev  = params['fitting']['x_stddev']
+y_stddev  = params['fitting']['y_stddev']
+theta     = params['fitting']['theta']
 
-f = fc.gauss_fit(cont2,
+f = fc.gauss_fit(cont_array,
                  mode='deg',
                  chs=[0],
                  amplitude=amplitude,
@@ -261,24 +207,38 @@ hpbw_minor_rad    = float(f.y_stddev * sigma2hpbw * np.pi / 180)
 print(f'hpbw_major: {hpbw_major_arcsec:.1f} [arcsec], {hpbw_major_rad:.1e} [rad]')
 print(f'hpbw_minor: {hpbw_minor_arcsec:.1f} [arcsec], {hpbw_minor_rad:.1e} [rad]')
 
-plt.style.use('seaborn-dark')
-fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+header = fits.getheader(cont_obs_fits)
+fits.writeto(cont_mod_fits, f[:, :, 0].values.T, header, overwrite=True)
+fits.writeto(cont_res_fits, (cont_array[:, :, 0] - f[:, :, 0]).values.T, header, overwrite=True)
 
-cmap = 'viridis'
-ax[0].imshow(cont2[:, :, 0].T, cmap=cmap, origin='lower')
-ax[0].set_title('Observation')
-ax[1].imshow(f[:, :, 0].T, cmap=cmap, origin='lower')
-ax[1].set_title('Model')
-ax[2].imshow(cube2[:, :, 0].T - f[:, :, 0].T, cmap=cmap, origin='lower')
-ax[2].set_title('Residual')
+fig = plt.figure(figsize=(12, 4), dpi=dpi)
 
-fig.tight_layout()
-fig.savefig(outdir / f'contfit_{obsid}.{imgfmt}')
-if pltflg:
+ax = aplpy.FITSFigure(str(cont_obs_fits), figure=fig, subplot=(1, 3, 1))
+ax.show_colorscale(cmap='viridis', stretch='linear')
+ax.add_colorbar(width=0.15) 
+ax.set_title('Observation')
+
+ax = aplpy.FITSFigure(str(cont_mod_fits), figure=fig, subplot=(1, 3, 2))
+ax.show_colorscale(cmap='viridis', stretch='linear')
+ax.add_colorbar(width=0.15)
+ax.set_title('Model')
+ax.tick_labels.hide_y()
+ax.axis_labels.hide_y()
+
+ax = aplpy.FITSFigure(str(cont_res_fits), figure=fig, subplot=(1, 3, 3))
+ax.show_colorscale(cmap='viridis', stretch='linear')
+ax.add_colorbar(width=0.15)
+ax.set_title('Residual')
+ax.tick_labels.hide_y()
+ax.axis_labels.hide_y()
+
+plt.tight_layout(pad=4.0, w_pad=0.5)
+plt.savefig(output_dir / f'continuum_model.{image_format}')
+if do_plot:
     plt.show()
 else:
     plt.clf()
     plt.close()
 
 alldata.add_row([np.median(array.subref_x), f.peak, f.x_mean, f.y_mean, f.x_stddev, f.y_stddev, f.theta])
-alldata.write(outtxt, format='ascii', overwrite=True)
+alldata.write(result_file, format='ascii', overwrite=True)

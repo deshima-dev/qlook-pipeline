@@ -1,8 +1,9 @@
 file:
-  outdir: /Users/tsuyoshi/Documents/deshima-dev/qlook-pipeline/results # output directory
-  outtxt: results.txt
-  imgfmt: png   # image format (pdf, png, svg, ...etc)
-  pltflg: True # plot flag
+  output_dir: /Users/tsuyoshi/Documents/deshima-dev/qlook-pipeline/results # output directory (absolute path)
+  result_file: results.txt # file name of result
+  image_format: png        # image format (pdf, png, svg, etc...)
+  do_plot: True            # plot flag (True or False)
+  dpi: 100                 # dpi
 
 loaddfits: # parameters for dc.io.loaddfits()
   coordtype: azel
@@ -24,7 +25,6 @@ check_scantypes:
 
 calibration:
   Tamb: 273 # ambient temparature for dc.models.chopper_calibration()
-  refch: 30 # reference channel for the calibration check
 
 imaging:
   gx: 0.00175 # grid size of x for dc.tocube()
@@ -32,9 +32,6 @@ imaging:
   exchs: [16, 18, 44, 46] # channels to be excluded in makecontinuum()
 
 fitting: # initial values for the continuum fitting
-  amplitude: 5         # peak value
-  x_mean: 0 # mean of x
-  y_mean: 0 # mean of y
   x_stddev: 0.001      # standard deviation of x
   y_stddev: 0.001      # standard deviation of y
   theta: 1.0          # position angle
