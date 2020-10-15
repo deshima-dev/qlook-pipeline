@@ -26,7 +26,7 @@ else:
     isTqdmInstalled = True
 
 # original package
-import functions as fc
+from . import functions as fc
 
 
 ##### command line arguments
@@ -314,7 +314,7 @@ for i in iterator:
     ax[2].imshow(cube2[:, :, 7+i].T - h[:, :, 7+i].T, cmap=cmap)
     ax[2].set_title('Residual')
     plt.suptitle(f'ch #{7+i}')
-    
+
     fig.tight_layout()
     fig.savefig(cubedir / f'cubefit_#{7+i}_{obsid}.{imgfmt}')
     plt.clf()
@@ -336,14 +336,14 @@ ll = interp1d(data[istart:iend, 0], data[istart:iend, 1], kind='cubic')
 theta_s = data[istart:iend, 1].mean()
 
 ax[0].plot(data[istart:iend, 0], data[istart:iend, 1], '.')
-ax[0].plot(data[istart:iend, 0], ll(x), 'k-') 
+ax[0].plot(data[istart:iend, 0], ll(x), 'k-')
 ax[0].set_xlabel('frequency [GHz]')
 ax[0].set_ylabel('angular diameter [arcsec]')
 
 mm = interp1d(data[istart:iend, 0], data[istart:iend, 2], kind='cubic')
 
 ax[1].plot(data[istart:iend, 0], data[istart:iend, 2], '.')
-ax[1].plot(data[istart:iend, 0], mm(x), 'k-') 
+ax[1].plot(data[istart:iend, 0], mm(x), 'k-')
 ax[1].set_xlabel('frequency [GHz]')
 ax[1].set_ylabel('Tb [K]')
 

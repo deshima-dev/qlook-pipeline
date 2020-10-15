@@ -19,7 +19,7 @@ import astropy.units as u
 import aplpy
 
 # original package
-import functions as fc
+from . import functions as fc
 
 
 ##### command line arguments
@@ -119,11 +119,12 @@ for sid in np.unique(array.scanid):
     subarray = array[array.scanid==sid]
     scantype = np.unique(subarray.scantype)
     t = subarray.time.values[int(len(subarray)/2)]
-    if scantype == 'SCAN':
-        m0 = subarray[:int(1/4 * len(subarray))].median('t').values
-        m1 = subarray[int(3/4 * len(subarray)):].median('t').values
-        times.append(t)
-        medians.append((m0+m1) / 2)
+    if scantype == 'SCAN': ### <- remove??
+        # m0 = subarray[:int(1/4 * len(subarray))].median('t').values
+        # m1 = subarray[int(3/4 * len(subarray)):].median('t').values
+        # times.append(t)
+        # medians.append((m0+m1) / 2)
+        pass
     elif scantype == 'TRAN':
         times.append(t)
         medians.append(subarray.median('t').values)
@@ -180,7 +181,7 @@ dc.io.savefits(cont_array, cont_obs_fits, dropdeg=True, overwrite=True)
 ##### 5th step: 2D-Gauss fit on the continuum map
 print('#5: 2D-Gauss fit on the continuum map')
 
-alldata = table.QTable(names=('subref_x', 'peak', 'x_mean', 'y_mean', 'x_stddev', 'y_stddev', 'theta'))
+alldata = table.QTable(names=('subref_x', 'subref_y', 'peak', 'x_mean', 'y_mean', 'x_stddev', 'y_stddev', 'theta'))
 
 amplitude = float(cont_array.max().values)
 x_mean    = float(cont_array.where(cont_array==cont_array.max(), drop=True).x.values)
@@ -215,7 +216,7 @@ fig = plt.figure(figsize=(12, 4), dpi=dpi)
 
 ax = aplpy.FITSFigure(str(cont_obs_fits), figure=fig, subplot=(1, 3, 1))
 ax.show_colorscale(cmap='viridis', stretch='linear')
-ax.add_colorbar(width=0.15) 
+ax.add_colorbar(width=0.15)
 ax.set_title('Observation')
 
 ax = aplpy.FITSFigure(str(cont_mod_fits), figure=fig, subplot=(1, 3, 2))
@@ -240,5 +241,5 @@ else:
     plt.clf()
     plt.close()
 
-alldata.add_row([np.median(array.subref_x), f.peak, f.x_mean, f.y_mean, f.x_stddev, f.y_stddev, f.theta])
+alldata.add_row([np.median(array.subref_x), np.median(array.subref_y), f.peak, f.x_mean, f.y_mean, f.x_stddev, f.y_stddev, f.theta])
 alldata.write(result_file, format='ascii', overwrite=True)

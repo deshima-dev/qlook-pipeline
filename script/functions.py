@@ -271,7 +271,7 @@ def makecontinuum(cube, **kwargs):
 
     if weight is None:
         weight = 1.0
-    
+
     cont = (cube * (1 / weight ** 2)).sum(dim="ch") / (1 / weight ** 2).sum(dim="ch")
     cont = cont.expand_dims(dim='ch', axis=2) ### <- added
 
@@ -314,7 +314,7 @@ def gauss_fit(
 ):
     if chs is None:
         chs = np.ogrid[0:63]
-    
+
     if len(chs) > 1:
         for n, ch in enumerate(chs):
             subdata = np.transpose(np.full_like(map_data[:, :, ch], map_data.values[:, :, ch]))
@@ -326,17 +326,17 @@ def gauss_fit(
                 mX, mY = np.mgrid[0:len(map_data.y), 0:len(map_data.x)]
 
             g_init = models.Gaussian2D(
-                amplitude=np.nanmax(subdata), 
+                amplitude=np.nanmax(subdata),
                 x_mean=x_mean,
-                y_mean=y_mean, 
-                x_stddev=x_stddev, 
+                y_mean=y_mean,
+                x_stddev=x_stddev,
                 y_stddev=y_stddev,
                 theta=theta,
                 cov_matrix=cov_matrix,
                 **kwargs) + models.Const2D(noise)
             fit_g = fitting.LevMarLSQFitter()
             g     = fit_g(g_init, mX, mY, subdata)
-            
+
             g_init2 = models.Gaussian2D(
                 amplitude=np.nanmax(subdata - g.amplitude_1),
                 x_mean=x_mean,
@@ -376,11 +376,11 @@ def gauss_fit(
                 x_stddevs = np.append(x_stddevs, [g2.x_stddev.value], axis=0)
                 y_stddevs = np.append(y_stddevs, [g2.y_stddev.value], axis=0)
                 thetas    = np.append(thetas, [g2.theta.value], axis=0)
-                if fit_g2.fit_info['param_cov'] is None: 
+                if fit_g2.fit_info['param_cov'] is None:
                     uncerts0 = np.append(uncerts0, [0], axis=0) ### <- added
                     uncerts1 = np.append(uncerts1, [0], axis=0) ### <- added
                     uncerts2 = np.append(uncerts2, [0], axis=0) ### <- added
-                else: 
+                else:
                     error = np.diag(fit_g2.fit_info['param_cov'])**0.5
                     uncerts0 = np.append(uncerts0, [error[0]], axis=0) ### <- added
                     uncerts1 = np.append(uncerts1, [error[1]], axis=0) ### <- added
@@ -418,7 +418,7 @@ def gauss_fit(
             **kwargs) + models.Const2D(noise)
         fit_g = fitting.LevMarLSQFitter()
         g     = fit_g(g_init, mX, mY, subdata)
-        
+
         g_init2 = models.Gaussian2D(
             amplitude=np.nanmax(subdata - g.amplitude_1),
             x_mean=x_mean,
@@ -430,7 +430,7 @@ def gauss_fit(
             **kwargs)
         fit_g2 = fitting.LevMarLSQFitter()
         g2     = fit_g2(g_init2, mX, mY, subdata)
-        
+
         results   = np.array([g2(mX, mY)])
         peaks     = np.array([g2.amplitude.value])
         x_means   = np.array([g2.x_mean.value])
@@ -455,5 +455,5 @@ def gauss_fit(
             'uncert0': uncerts0,  ### <- added
             'uncert3': uncerts3,  ### <- added
             'uncert4': uncerts4}) ### <- added
-    
+
     return result
