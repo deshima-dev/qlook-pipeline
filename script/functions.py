@@ -7,11 +7,13 @@ from astropy import table
 from astropy.modeling import models, fitting
 
 from logging import getLogger
+
 logger = getLogger(__name__)
+
 
 def loaddfits(
     fitsname,
-    antlogfile, # <- added
+    antlogfile,  # <- added
     coordtype="azel",
     loadtype="temperature",
     starttime=None,
@@ -54,7 +56,7 @@ def loaddfits(
         readout = hdulist["READOUT"].data
         wealog = hdulist["WEATHER"].data
 
-    rawantlog = table.Table.read(antlogfile, format='ascii')[:-1] # <- added
+    rawantlog = table.Table.read(antlogfile, format="ascii")[:-1]  # <- added
 
     # obsinfo
     masterids = obsinfo["masterids"][0].astype(np.int64)
@@ -134,9 +136,9 @@ def loaddfits(
         raise KeyError(coordtype)
     scantype = antlog["scantype"]
 
-    subref_x = np.array(rawantlog['x']) # <- added
-    subref_y = np.array(rawantlog['y']) # <- added
-    subref_z = np.array(rawantlog['z']) # <- added
+    subref_x = np.array(rawantlog["x"])  # <- added
+    subref_y = np.array(rawantlog["y"])  # <- added
+    subref_z = np.array(rawantlog["z"])  # <- added
 
     # weatherlog
     temp = wealog["temperature"]
@@ -152,9 +154,9 @@ def loaddfits(
     x_i = np.interp(dt_out, dt_ant, x)
     y_i = np.interp(dt_out, dt_ant, y)
 
-    subref_xi = np.interp(dt_out, dt_ant, subref_x) # <- added
-    subref_yi = np.interp(dt_out, dt_ant, subref_y) # <- added
-    subref_zi = np.interp(dt_out, dt_ant, subref_z) # <- added
+    subref_xi = np.interp(dt_out, dt_ant, subref_x)  # <- added
+    subref_yi = np.interp(dt_out, dt_ant, subref_y)  # <- added
+    subref_zi = np.interp(dt_out, dt_ant, subref_z)  # <- added
 
     temp_i = np.interp(dt_out, dt_wea, temp)
     pressure_i = np.interp(dt_out, dt_wea, pressure)
@@ -224,9 +226,9 @@ def loaddfits(
     tcoords = {
         "x": x_i,
         "y": y_i,
-        'subref_x': subref_xi, # <- added
-        'subref_y': subref_yi, # <- added
-        'subref_z': subref_zi, # <- added
+        "subref_x": subref_xi,  # <- added
+        "subref_y": subref_yi,  # <- added
+        "subref_z": subref_zi,  # <- added
         "time": t_out,
         "temp": temp_i,
         "pressure": pressure_i,
@@ -261,6 +263,7 @@ def loaddfits(
 
     return array
 
+
 def makecontinuum(cube, **kwargs):
     inchs = kwargs.pop("inchs", None)
     exchs = kwargs.pop("exchs", None)
@@ -273,7 +276,7 @@ def makecontinuum(cube, **kwargs):
         weight = 1.0
 
     cont = (cube * (1 / weight ** 2)).sum(dim="ch") / (1 / weight ** 2).sum(dim="ch")
-    cont = cont.expand_dims(dim='ch', axis=2) ### <- added
+    cont = cont.expand_dims(dim="ch", axis=2)  # <- added
 
     xcoords = {"x": cube.x.values}
     ycoords = {"y": cube.y.values}
@@ -298,10 +301,11 @@ def makecontinuum(cube, **kwargs):
         scalarcoords=scalarcoords,
     )
 
+
 def gauss_fit(
     map_data,
     chs=None,
-    mode='pix',
+    mode="pix",
     amplitude=1,
     x_mean=0,
     y_mean=0,
@@ -317,13 +321,15 @@ def gauss_fit(
 
     if len(chs) > 1:
         for n, ch in enumerate(chs):
-            subdata = np.transpose(np.full_like(map_data[:, :, ch], map_data.values[:, :, ch]))
+            subdata = np.transpose(
+                np.full_like(map_data[:, :, ch], map_data.values[:, :, ch])
+            )
             subdata[np.isnan(subdata)] = 0
 
-            if mode == 'deg':
+            if mode == "deg":
                 mX, mY = np.meshgrid(map_data.x, map_data.y)
-            elif mode == 'pix':
-                mX, mY = np.mgrid[0:len(map_data.y), 0:len(map_data.x)]
+            elif mode == "pix":
+                mX, mY = np.mgrid[0 : len(map_data.y), 0 : len(map_data.x)]
 
             g_init = models.Gaussian2D(
                 amplitude=np.nanmax(subdata),
@@ -333,9 +339,10 @@ def gauss_fit(
                 y_stddev=y_stddev,
                 theta=theta,
                 cov_matrix=cov_matrix,
-                **kwargs) + models.Const2D(noise)
+                **kwargs
+            ) + models.Const2D(noise)
             fit_g = fitting.LevMarLSQFitter()
-            g     = fit_g(g_init, mX, mY, subdata)
+            g = fit_g(g_init, mX, mY, subdata)
 
             g_init2 = models.Gaussian2D(
                 amplitude=np.nanmax(subdata - g.amplitude_1),
@@ -345,67 +352,73 @@ def gauss_fit(
                 y_stddev=y_stddev,
                 theta=theta,
                 cov_matrix=cov_matrix,
-                **kwargs)
+                **kwargs
+            )
             fit_g2 = fitting.LevMarLSQFitter()
-            g2     = fit_g2(g_init2, mX, mY, subdata)
+            g2 = fit_g2(g_init2, mX, mY, subdata)
 
             if n == 0:
                 results = np.array([g2(mX, mY)])
-                peaks   = np.array([g2.amplitude.value])
+                peaks = np.array([g2.amplitude.value])
                 x_means = np.array([g2.x_mean.value])
                 y_means = np.array([g2.y_mean.value])
                 x_stddevs = np.array([g2.x_stddev.value])
                 y_stddevs = np.array([g2.y_stddev.value])
                 thetas = np.array([g2.theta.value])
 
-                if fit_g2.fit_info['param_cov'] is None:
-                    unserts0 = np.array([0]) ### <- added
-                    unserts1 = np.array([0]) ### <- added
-                    unserts2 = np.array([0]) ### <- added
+                if fit_g2.fit_info["param_cov"] is None:
+                    unserts0 = np.array([0])  # <- added
+                    unserts1 = np.array([0])  # <- added
+                    unserts2 = np.array([0])  # <- added
                 else:
-                    error     = np.diag(fit_g2.fit_info['param_cov'])**0.5
-                    uncerts0  = np.array([error[0]]) ### <- added
-                    uncerts1  = np.array([error[1]]) ### <- added
-                    uncerts2  = np.array([error[2]]) ### <- added
+                    error = np.diag(fit_g2.fit_info["param_cov"]) ** 0.5
+                    uncerts0 = np.array([error[0]])  # <- added
+                    uncerts1 = np.array([error[1]])  # <- added
+                    uncerts2 = np.array([error[2]])  # <- added
 
             else:
-                results   = np.append(results, [g2(mX, mY)], axis=0)
-                peaks     = np.append(peaks, [g2.amplitude.value], axis=0)
-                x_means   = np.append(x_means, [g2.x_mean.value], axis=0)
-                y_means   = np.append(y_means, [g2.y_mean.value], axis=0)
+                results = np.append(results, [g2(mX, mY)], axis=0)
+                peaks = np.append(peaks, [g2.amplitude.value], axis=0)
+                x_means = np.append(x_means, [g2.x_mean.value], axis=0)
+                y_means = np.append(y_means, [g2.y_mean.value], axis=0)
                 x_stddevs = np.append(x_stddevs, [g2.x_stddev.value], axis=0)
                 y_stddevs = np.append(y_stddevs, [g2.y_stddev.value], axis=0)
-                thetas    = np.append(thetas, [g2.theta.value], axis=0)
-                if fit_g2.fit_info['param_cov'] is None:
-                    uncerts0 = np.append(uncerts0, [0], axis=0) ### <- added
-                    uncerts1 = np.append(uncerts1, [0], axis=0) ### <- added
-                    uncerts2 = np.append(uncerts2, [0], axis=0) ### <- added
+                thetas = np.append(thetas, [g2.theta.value], axis=0)
+                if fit_g2.fit_info["param_cov"] is None:
+                    uncerts0 = np.append(uncerts0, [0], axis=0)  # <- added
+                    uncerts1 = np.append(uncerts1, [0], axis=0)  # <- added
+                    uncerts2 = np.append(uncerts2, [0], axis=0)  # <- added
                 else:
-                    error = np.diag(fit_g2.fit_info['param_cov'])**0.5
-                    uncerts0 = np.append(uncerts0, [error[0]], axis=0) ### <- added
-                    uncerts1 = np.append(uncerts1, [error[1]], axis=0) ### <- added
-                    uncerts2 = np.append(uncerts2, [error[2]], axis=0) ### <- added
+                    error = np.diag(fit_g2.fit_info["param_cov"]) ** 0.5
+                    uncerts0 = np.append(uncerts0, [error[0]], axis=0)  # <- added
+                    uncerts1 = np.append(uncerts1, [error[1]], axis=0)  # <- added
+                    uncerts2 = np.append(uncerts2, [error[2]], axis=0)  # <- added
 
         result = map_data.copy()
         result.values = np.transpose(results)
         result.attrs.update(
-            {'peak': peaks,
-            'x_mean': x_means,
-            'y_mean': y_means,
-            'x_stddev': x_stddevs,
-            'y_stddev': y_stddevs,
-            'theta': thetas,
-            'uncert0': uncerts0,  ### <- added
-            'uncert1': uncerts1,  ### <- added
-            'uncert2': uncerts2}) ### <- added
+            {
+                "peak": peaks,
+                "x_mean": x_means,
+                "y_mean": y_means,
+                "x_stddev": x_stddevs,
+                "y_stddev": y_stddevs,
+                "theta": thetas,
+                "uncert0": uncerts0,  # <- added
+                "uncert1": uncerts1,  # <- added
+                "uncert2": uncerts2,
+            }
+        )  # <- added
     else:
-        subdata = np.transpose(np.full_like(map_data[:, :, 0], map_data.values[:, :, 0]))
+        subdata = np.transpose(
+            np.full_like(map_data[:, :, 0], map_data.values[:, :, 0])
+        )
         subdata[np.isnan(subdata)] = 0
 
-        if mode == 'deg':
-            mX, mY  = np.meshgrid(map_data.x, map_data.y)
-        elif mode == 'pix':
-            mX, mY  = np.mgrid[0:len(map_data.y), 0:len(map_data.x)]
+        if mode == "deg":
+            mX, mY = np.meshgrid(map_data.x, map_data.y)
+        elif mode == "pix":
+            mX, mY = np.mgrid[0 : len(map_data.y), 0 : len(map_data.x)]
 
         g_init = models.Gaussian2D(
             amplitude=np.nanmax(subdata),
@@ -415,9 +428,10 @@ def gauss_fit(
             y_stddev=y_stddev,
             theta=theta,
             cov_matrix=cov_matrix,
-            **kwargs) + models.Const2D(noise)
+            **kwargs
+        ) + models.Const2D(noise)
         fit_g = fitting.LevMarLSQFitter()
-        g     = fit_g(g_init, mX, mY, subdata)
+        g = fit_g(g_init, mX, mY, subdata)
 
         g_init2 = models.Gaussian2D(
             amplitude=np.nanmax(subdata - g.amplitude_1),
@@ -427,33 +441,37 @@ def gauss_fit(
             y_stddev=y_stddev,
             theta=theta,
             cov_matrix=cov_matrix,
-            **kwargs)
+            **kwargs
+        )
         fit_g2 = fitting.LevMarLSQFitter()
-        g2     = fit_g2(g_init2, mX, mY, subdata)
+        g2 = fit_g2(g_init2, mX, mY, subdata)
 
-        results   = np.array([g2(mX, mY)])
-        peaks     = np.array([g2.amplitude.value])
-        x_means   = np.array([g2.x_mean.value])
-        y_means   = np.array([g2.y_mean.value])
+        results = np.array([g2(mX, mY)])
+        peaks = np.array([g2.amplitude.value])
+        x_means = np.array([g2.x_mean.value])
+        y_means = np.array([g2.y_mean.value])
         x_stddevs = np.array([g2.x_stddev.value])
         y_stddevs = np.array([g2.y_stddev.value])
-        thetas    = np.array([g2.theta.value])
-        error     = np.diag(fit_g2.fit_info['param_cov'])**0.5
-        uncerts0  = np.array(error[0]) ### <- added
-        uncerts3  = np.array(error[3]) ### <- added
-        uncerts4  = np.array(error[4]) ### <- added
+        thetas = np.array([g2.theta.value])
+        error = np.diag(fit_g2.fit_info["param_cov"]) ** 0.5
+        uncerts0 = np.array(error[0])  # <- added
+        uncerts3 = np.array(error[3])  # <- added
+        uncerts4 = np.array(error[4])  # <- added
 
         result = map_data.copy()
         result.values = np.transpose(results)
         result.attrs.update(
-            {'peak': peaks,
-            'x_mean': x_means,
-            'y_mean': y_means,
-            'x_stddev': x_stddevs,
-            'y_stddev': y_stddevs,
-            'theta': thetas,
-            'uncert0': uncerts0,  ### <- added
-            'uncert3': uncerts3,  ### <- added
-            'uncert4': uncerts4}) ### <- added
+            {
+                "peak": peaks,
+                "x_mean": x_means,
+                "y_mean": y_means,
+                "x_stddev": x_stddevs,
+                "y_stddev": y_stddevs,
+                "theta": thetas,
+                "uncert0": uncerts0,  # <- added
+                "uncert3": uncerts3,  # <- added
+                "uncert4": uncerts4,
+            }
+        )  # <- added
 
     return result
