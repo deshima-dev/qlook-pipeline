@@ -18,7 +18,7 @@ from astropy.io import fits
 import aplpy
 
 # original package
-from . import functions as fc
+from utils import functions as fc
 
 # module settings
 warnings.filterwarnings("ignore")

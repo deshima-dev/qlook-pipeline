@@ -13,7 +13,7 @@ from astropy import table
 from astropy.modeling import models, fitting
 
 # original package
-from . import functions as fc
+from utils import functions as fc
 
 # module settings
 warnings.filterwarnings("ignore")
