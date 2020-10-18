@@ -1,13 +1,15 @@
 file:
-  outdir: /Users/tsuyoshi/Documents/deshima-dev/qlook-pipeline/results # output directory
-  outtxt: results.txt
-  imgfmt: png   # image format (pdf, png, svg, ...etc)
-  pltflg: False # plot flag
+  output_dir: /Users/tsuyoshi/Documents/deshima-dev/qlook-pipeline/results # output directory
+  result_file: results.txt # file name of result
+  image_format: png        # image format (pdf, png, svg, etc...)
+  do_plot: True           # plot flag (True or False)
+  dpi: 100                 # dpi
 
 loaddfits: # parameters for dc.io.loaddfits()
   coordtype: azel
   mode: 0
   loadtype: temperature
+  ch: 0
 
 check_scantypes:
   tstart0: 0    # time index in the beginning
