@@ -11,15 +11,10 @@ import numpy as np
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 from astropy import table
+from astropy.io import fits
 import astropy.units as u
-
-try:
-    from tqdm import tqdm
-except ModuleNotFoundError:
-    print("tqdm is not installed")
-    isTqdmInstalled = False
-else:
-    isTqdmInstalled = True
+import aplpy
+from tqdm import tqdm
 
 # original package
 from utils import functions as fc
@@ -31,133 +26,69 @@ plt.style.use("seaborn-muted")
 
 # command line arguments
 parser = argparse.ArgumentParser()
-parser.add_argument("dfitsname", help="DFITS name")
-parser.add_argument("fluxtxt", help="flux text")
-parser.add_argument("ymlname", help="parameter file")
+parser.add_argument("dfits_file", help="DFITS name")
+parser.add_argument("flux_file", help="flux text")
+parser.add_argument("yaml_file", help="parameter file")
 args = parser.parse_args()
 
-dfitsname = pathlib.Path(args.dfitsname)
-fluxtxt = pathlib.Path(args.fluxtxt)
-ymlname = pathlib.Path(args.ymlname)
-with open(ymlname) as file:
-    ymldata = yaml.load(file, Loader=yaml.SafeLoader)
+dfits_file = pathlib.Path(args.dfits_file)
+flux_file = pathlib.Path(args.flux_file)
+yaml_file = pathlib.Path(args.yaml_file)
+with open(yaml_file) as file:
+    params = yaml.load(file, Loader=yaml.SafeLoader)
 
 # directory settings
-obsid = dfitsname.name.split("_")[1].split(".")[0]
-outdir = pathlib.Path(ymldata["file"]["outdir"]) / obsid
-if not outdir.exists():
-    outdir.mkdir(parents=True)
-dcontname = outdir / f"dcont_{obsid}.fits"
-dcubename = outdir / f"dcube_{obsid}.fits"
-cubedir = outdir / "cube"
-if not cubedir.exists():
-    cubedir.mkdir()
-outtxt = outdir / ymldata["file"]["outtxt"]
-imgfmt = ymldata["file"]["imgfmt"]
-pltflg = ymldata["file"]["pltflg"]
+obsid = dfits_file.name.split("_")[1].split(".")[0]
+output_dir = pathlib.Path(params["file"]["output_dir"]) / obsid
+if not output_dir.exists():
+    output_dir.mkdir(parents=True)
+cont_obs_fits = output_dir / "continuum_obs.fits"
+cube_obs_fits = output_dir / "cube_obs.fits"
+cont_mod_fits = output_dir / "continuum_model.fits"
+cont_res_fits = output_dir / "continuum_residual.fits"
+cube_dir = output_dir / "cube"
+if not cube_dir.exists():
+    cube_dir.mkdir()
+result_file = output_dir / params["file"]["result_file"]
+image_format = params["file"]["image_format"]
+do_plot = params["file"]["do_plot"]
+dpi = params["file"]["dpi"]
 
 # dc.io.loaddfits parameters
-coordtype = ymldata["loaddfits"]["coordtype"]
-starttime = ymldata["loaddfits"]["starttime"]
-endtime = ymldata["loaddfits"]["endtime"]
-mode = ymldata["loaddfits"]["mode"]
-loadtype = ymldata["loaddfits"]["loadtype"]
-findR = ymldata["loaddfits"]["findR"]
-Rth = ymldata["loaddfits"]["Rth"]
-skyth = ymldata["loaddfits"]["skyth"]
-ch = ymldata["loaddfits"]["ch"]
-cutnum = ymldata["loaddfits"]["cutnum"]
-
-array = dc.io.loaddfits(
-    dfitsname,
-    coordtype=coordtype,
-    starttime=starttime,
-    endtime=endtime,
-    mode=mode,
-    loadtype=loadtype,
-    findR=findR,
-    Rth=Rth,
-    skyth=skyth,
-    ch=ch,
-    cutnum=cutnum,
-)
+ch = params["loaddfits"]["ch"]
+array = dc.io.loaddfits(dfits_file, **params["loaddfits"])
 
 # 1st step: check automatic R/SKY assignment
 print("#1: automatic R/SKY assignment")
 
 scantypes = np.unique(array.scantype)
 Tr = array[array.scantype == "R"][:, ch].values.mean()
-
 print(f"scantypes: {scantypes}")
 print(f"Tr: {Tr:.1f} [K]")
 
-fig, ax = plt.subplots(2, 1, figsize=(10, 5))
-tstart0 = ymldata["check_scantypes"]["tstart0"]
-tend0 = ymldata["check_scantypes"]["tend0"]
-tstart1 = ymldata["check_scantypes"]["tstart1"]
-tend1 = ymldata["check_scantypes"]["tend1"]
+fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
+tstart0 = params["check_scantypes"]["tstart0"]
+tend0 = params["check_scantypes"]["tend0"]
+tstart1 = params["check_scantypes"]["tstart1"]
+tend1 = params["check_scantypes"]["tend1"]
 subarray0 = array[tstart0:tend0, :]
 subarray1 = array[tstart1:tend1, :]
 
-xtick = "time"
-marker = "."
-linestyle = "None"
+plot_params0 = {"marker": ".", "markersize": 1.0, "linewidth": 0.5}
+plot_params1 = {"marker": ".", "markersize": 1.0, "linestyle": "None"}
 
-dc.plot.plot_timestream(
-    subarray0, kidid=ch, xtick=xtick, scantypes=None, ax=ax[0], marker=marker
-)
-dc.plot.plot_timestream(
-    subarray0,
-    kidid=ch,
-    xtick=xtick,
-    scantypes=["R"],
-    ax=ax[0],
-    marker=marker,
-    linestyle=linestyle,
-)
-dc.plot.plot_timestream(
-    subarray1, kidid=ch, xtick=xtick, scantypes=None, ax=ax[1], marker=marker
-)
-dc.plot.plot_timestream(
-    subarray1,
-    kidid=ch,
-    xtick=xtick,
-    scantypes=["SCAN"],
-    ax=ax[1],
-    marker=marker,
-    linestyle=linestyle,
-)
-dc.plot.plot_timestream(
-    subarray1,
-    kidid=ch,
-    xtick=xtick,
-    scantypes=["TRAN"],
-    ax=ax[1],
-    marker=marker,
-    linestyle=linestyle,
-)
-dc.plot.plot_timestream(
-    subarray1,
-    kidid=ch,
-    xtick=xtick,
-    scantypes=["ACC"],
-    ax=ax[1],
-    marker=marker,
-    linestyle=linestyle,
-)
-dc.plot.plot_timestream(
-    subarray1,
-    kidid=ch,
-    xtick=xtick,
-    scantypes=["GRAD"],
-    ax=ax[1],
-    marker=marker,
-    linestyle=linestyle,
-)
+dc.plot.plot_timestream(subarray0, ch, ax=ax[0], **plot_params0)
+dc.plot.plot_timestream(subarray0, ch, scantypes=["R"], ax=ax[0], **plot_params1)
+
+dc.plot.plot_timestream(subarray1, ch, ax=ax[1], **plot_params0)
+dc.plot.plot_timestream(subarray1, ch, scantypes=["SCAN"], ax=ax[1], **plot_params1)
+dc.plot.plot_timestream(subarray1, ch, scantypes=["TRAN"], ax=ax[1], **plot_params1)
+dc.plot.plot_timestream(subarray1, ch, scantypes=["ACC"], ax=ax[1], **plot_params1)
+dc.plot.plot_timestream(subarray1, ch, scantypes=["GRAD"], ax=ax[1], **plot_params1)
 
 fig.tight_layout()
-fig.savefig(outdir / f"timestream_{obsid}.{imgfmt}")
-if pltflg:
+fig.savefig(output_dir / f"time_stream.{image_format}")
+if do_plot:
     plt.show()
 else:
     plt.clf()
@@ -166,13 +97,7 @@ else:
 # 2nd step: advanced baseline fit
 print("#2: advanced baseline fit")
 
-Tamb = ymldata["calibration"]["Tamb"]
-scanarray = array[array.scantype == "SCAN"]
-offarray = array[array.scantype == "ACC"]
-rarray = array[array.scantype == "R"]
-scanarray_cal, offarray_cal = dc.models.chopper_calibration(
-    scanarray, offarray, rarray, Tamb, mode="mean"
-)
+Tamb = params["calibration"]["Tamb"]
 
 times = []
 medians = []
@@ -200,32 +125,20 @@ blarray = interp1d(times, medians, axis=0, kind="cubic", fill_value="extrapolate
     array.time.astype(float)
 )
 blarray = dc.full_like(array, blarray)
+scanarray_cal = (Tamb * (array - blarray) / (Tr - blarray))[array.scantype == "SCAN"]
 
-# scanarray_cal2 = (Tr * (array - blarray) / (Tr - blarray))[array.scantype == 'SCAN']
-scanarray_cal2 = (Tamb * (array - blarray) / (Tr - blarray))[array.scantype == "SCAN"]
-scanarray_cal3 = scanarray_cal2.copy()
-scanarray_cal3.values = scanarray_cal2.values - np.nanmean(offarray_cal.values)
+fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
+refch = params["calibration"]["refch"]
+plot_params = {"linewidth": 0.2}
 
-fig, ax = plt.subplots(3, 1, figsize=(10, 7))
-refch = ymldata["calibration"]["refch"]
-
+dc.plot.plot_timestream(array, refch, scantypes=["SCAN"], ax=ax[0], **plot_params)
 dc.plot.plot_timestream(
-    scanarray_cal, kidid=refch, xtick=xtick, scantypes=["SCAN"], ax=ax[0]
+    scanarray_cal, refch, scantypes=["SCAN"], ax=ax[1], **plot_params
 )
-dc.plot.plot_timestream(
-    scanarray_cal2, kidid=refch, xtick=xtick, scantypes=["SCAN"], ax=ax[1]
-)
-dc.plot.plot_timestream(
-    scanarray_cal3, kidid=refch, xtick=xtick, scantypes=["SCAN"], ax=ax[2]
-)
-ax[0].set_title(f"chppper calibration ch #{refch}")
-ax[1].set_title(f"advanced baseline fitting ch #{refch}")
-ax[2].set_title(f"advanced baseline fitting II ch #{refch}")
-# ax[2].set_title(f'chopper calibration - advanced baseline fitting ch #{refch}')
 
 fig.tight_layout()
-fig.savefig(outdir / f"calibration_{obsid}.{imgfmt}")
-if pltflg:
+fig.savefig(output_dir / f"baseline_subtraction.{image_format}")
+if do_plot:
     plt.show()
 else:
     plt.clf()
@@ -234,39 +147,40 @@ else:
 # 3rd step: make cube/continuum
 print("#3: make cube/continuum")
 
-gx = ymldata["imaging"]["gx"]
-gy = ymldata["imaging"]["gy"]
-xmin = scanarray_cal3.x.min().values
-xmax = scanarray_cal3.x.max().values
-ymin = scanarray_cal3.y.min().values
-ymax = scanarray_cal3.y.max().values
-cube2 = dc.tocube(
-    scanarray_cal3, gx=gx, gy=gy, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax
+gx = params["imaging"]["gx"]
+gy = params["imaging"]["gy"]
+xmin = scanarray_cal.x.min().values
+xmax = scanarray_cal.x.max().values
+ymin = scanarray_cal.y.min().values
+ymax = scanarray_cal.y.max().values
+
+cube_array = dc.tocube(
+    scanarray_cal, gx=gx, gy=gy, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax
 )
-dc.io.savefits(cube2, dcubename, overwrite=True)
+dc.io.savefits(cube_array, cube_obs_fits, overwrite=True)
 
-exchs = ymldata["imaging"]["exchs"]
-mask = np.full_like(scanarray_cal3.kidid.values, True, dtype=np.bool)
+exchs = params["imaging"]["exchs"]
+mask = np.full_like(scanarray_cal.kidid.values, True, dtype=np.bool)
 mask[exchs] = False
-mask[np.where(scanarray_cal3.kidtp != 1)] = False
+mask[np.where(scanarray_cal.kidtp != 1)] = False
+masked_cube_array = cube_array[:, :, mask]
 
-subcube2 = cube2[:, :, mask]
-weight = dc.ones_like(subcube2)
-cont2 = fc.makecontinuum(subcube2, weight=weight)
-dc.io.savefits(cont2, dcontname, dropdeg=True, overwrite=True)
+weight = dc.ones_like(masked_cube_array)
+cont_array = fc.makecontinuum(masked_cube_array, weight=weight)
+dc.io.savefits(cont_array, cont_obs_fits, dropdeg=True, overwrite=True)
 
 # 4th step: 2D-Gauss fit on the continuum map
 print("#4: 2D-Gauss fit on the continuum map")
 
-amplitude = ymldata["fitting"]["amplitude"]
-x_mean = ymldata["fitting"]["x_mean"]
-y_mean = ymldata["fitting"]["y_mean"]
-x_stddev = ymldata["fitting"]["x_stddev"]
-y_stddev = ymldata["fitting"]["y_stddev"]
-theta = ymldata["fitting"]["theta"]
+amplitude = float(cont_array.max().values)
+x_mean = float(cont_array.where(cont_array == cont_array.max(), drop=True).x.values)
+y_mean = float(cont_array.where(cont_array == cont_array.max(), drop=True).y.values)
+x_stddev = params["fitting"]["x_stddev"]
+y_stddev = params["fitting"]["y_stddev"]
+theta = params["fitting"]["theta"]
 
 f = fc.gauss_fit(
-    cont2,
+    cont_array,
     mode="deg",
     chs=[0],
     amplitude=amplitude,
@@ -285,20 +199,36 @@ hpbw_minor_rad = float(f.y_stddev * sigma2hpbw * np.pi / 180)
 print(f"hpbw_major: {hpbw_major_arcsec:.1f} [arcsec], {hpbw_major_rad:.1e} [rad]")
 print(f"hpbw_minor: {hpbw_minor_arcsec:.1f} [arcsec], {hpbw_minor_rad:.1e} [rad]")
 
-plt.style.use("seaborn-dark")
-fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+header = fits.getheader(cont_obs_fits)
+fits.writeto(cont_mod_fits, f[:, :, 0].values.T, header, overwrite=True)
+fits.writeto(
+    cont_res_fits, (cont_array[:, :, 0] - f[:, :, 0]).values.T, header, overwrite=True
+)
 
-cmap = "viridis"
-ax[0].imshow(cont2[:, :, 0].T, cmap=cmap)
-ax[0].set_title("Observation")
-ax[1].imshow(f[:, :, 0].T, cmap=cmap)
-ax[1].set_title("Model")
-ax[2].imshow(cube2[:, :, 0].T - f[:, :, 0].T, cmap=cmap)
-ax[2].set_title("Residual")
+fig = plt.figure(figsize=(12, 4), dpi=dpi)
 
-fig.tight_layout()
-fig.savefig(outdir / f"contfit_{obsid}.{imgfmt}")
-if pltflg:
+ax = aplpy.FITSFigure(str(cont_obs_fits), figure=fig, subplot=(1, 3, 1))
+ax.show_colorscale(cmap="viridis", stretch="linear")
+ax.add_colorbar(width=0.15)
+ax.set_title("Observation")
+
+ax = aplpy.FITSFigure(str(cont_mod_fits), figure=fig, subplot=(1, 3, 2))
+ax.show_colorscale(cmap="viridis", stretch="linear")
+ax.add_colorbar(width=0.15)
+ax.set_title("Model")
+ax.tick_labels.hide_y()
+ax.axis_labels.hide_y()
+
+ax = aplpy.FITSFigure(str(cont_res_fits), figure=fig, subplot=(1, 3, 3))
+ax.show_colorscale(cmap="viridis", stretch="linear")
+ax.add_colorbar(width=0.15)
+ax.set_title("Residual")
+ax.tick_labels.hide_y()
+ax.axis_labels.hide_y()
+
+plt.tight_layout(pad=4.0, w_pad=0.5)
+plt.savefig(output_dir / f"continuum_model.{image_format}")
+if do_plot:
     plt.show()
 else:
     plt.clf()
@@ -310,7 +240,7 @@ print("#5: 2D-Gauss fit on the cube map")
 alldata = table.QTable()
 
 h = fc.gauss_fit(
-    cube2,
+    cube_array,
     mode="deg",
     amplitude=f.peak,
     x_mean=f.x_mean,
@@ -352,23 +282,48 @@ alldata["x_stddev"] = xstddevdata_sub
 alldata["y_stddev"] = ystddevdata_sub
 alldata["theta"] = thetadata_sub
 
-if isTqdmInstalled:
-    iterator = tqdm(range(len(h.kidfq[(h.kidtp != 0) & (h.kidtp != 2)])))
-else:
-    iterator = range(len(h.kidfq[(h.kidtp != 0) & (h.kidtp != 2)]))
+iterator = tqdm(range(len(h.kidfq[(h.kidtp != 0) & (h.kidtp != 2)])))
 for i in iterator:
-    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+    cube_obs_ch_fits = cube_dir / f"cube_{7+i}_obs.fits"
+    cube_mod_ch_fits = cube_dir / f"cube_{7+i}_model.fits"
+    cube_res_ch_fits = cube_dir / f"cube_{7+i}_residual.fits"
 
-    ax[0].imshow(cube2[:, :, 7 + i].T, cmap=cmap)
-    ax[0].set_title("Observation")
-    ax[1].imshow(h[:, :, 7 + i].T, cmap=cmap)
-    ax[1].set_title("Model")
-    ax[2].imshow(cube2[:, :, 7 + i].T - h[:, :, 7 + i].T, cmap=cmap)
-    ax[2].set_title("Residual")
-    plt.suptitle(f"ch #{7+i}")
+    fits.writeto(
+        cube_obs_ch_fits, cube_array[:, :, 7 + i].values.T, header, overwrite=True,
+    )
+    fits.writeto(
+        cube_mod_ch_fits, h[:, :, 7 + i].values.T, header, overwrite=True,
+    )
+    fits.writeto(
+        cube_res_ch_fits,
+        (cube_array[:, :, 7 + i] - h[:, :, 7 + i]).values.T,
+        header,
+        overwrite=True,
+    )
 
-    fig.tight_layout()
-    fig.savefig(cubedir / f"cubefit_#{7+i}_{obsid}.{imgfmt}")
+    fig = plt.figure(figsize=(12, 4), dpi=dpi)
+
+    ax = aplpy.FITSFigure(str(cube_obs_ch_fits), figure=fig, subplot=(1, 3, 1))
+    ax.show_colorscale(cmap="viridis", stretch="linear")
+    ax.add_colorbar(width=0.15)
+    ax.set_title("Observation")
+
+    ax = aplpy.FITSFigure(str(cube_mod_ch_fits), figure=fig, subplot=(1, 3, 2))
+    ax.show_colorscale(cmap="viridis", stretch="linear")
+    ax.add_colorbar(width=0.15)
+    ax.set_title("Model")
+    ax.tick_labels.hide_y()
+    ax.axis_labels.hide_y()
+
+    ax = aplpy.FITSFigure(str(cube_res_ch_fits), figure=fig, subplot=(1, 3, 3))
+    ax.show_colorscale(cmap="viridis", stretch="linear")
+    ax.add_colorbar(width=0.15)
+    ax.set_title("Residual")
+    ax.tick_labels.hide_y()
+    ax.axis_labels.hide_y()
+
+    plt.tight_layout(pad=4.0, w_pad=0.5)
+    fig.savefig(cube_dir / f"cube_model_#{7+i}.{image_format}")
     plt.clf()
     plt.close()
 
@@ -377,31 +332,31 @@ print("#6: planet properties")
 
 plt.style.use("seaborn-darkgrid")
 
-data = np.loadtxt(fluxtxt, comments="#", usecols=(1, 2, 3, 4, 5, 6))
-dtable = table.Table(data)
-istart = ymldata["planet"]["istart"]
-iend = ymldata["planet"]["iend"]
+planet_data = np.loadtxt(flux_file, comments="#", usecols=(1, 2, 3, 4, 5, 6))
+# dtable = table.Table(planet_data)
+istart = params["planet"]["istart"]
+iend = params["planet"]["iend"]
 
-fig, ax = plt.subplots(2, 1, figsize=(10, 5))
+fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
 x = np.linspace(300, 399, 100)  # frequency
-ll = interp1d(data[istart:iend, 0], data[istart:iend, 1], kind="cubic")
-theta_s = data[istart:iend, 1].mean()
+ll = interp1d(planet_data[istart:iend, 0], planet_data[istart:iend, 1], kind="cubic")
+theta_s = planet_data[istart:iend, 1].mean()
 
-ax[0].plot(data[istart:iend, 0], data[istart:iend, 1], ".")
-ax[0].plot(data[istart:iend, 0], ll(x), "k-")
+ax[0].plot(planet_data[istart:iend, 0], planet_data[istart:iend, 1], ".")
+ax[0].plot(planet_data[istart:iend, 0], ll(x), "k-")
 ax[0].set_xlabel("frequency [GHz]")
 ax[0].set_ylabel("angular diameter [arcsec]")
 
-mm = interp1d(data[istart:iend, 0], data[istart:iend, 2], kind="cubic")
+mm = interp1d(planet_data[istart:iend, 0], planet_data[istart:iend, 2], kind="cubic")
 
-ax[1].plot(data[istart:iend, 0], data[istart:iend, 2], ".")
-ax[1].plot(data[istart:iend, 0], mm(x), "k-")
+ax[1].plot(planet_data[istart:iend, 0], planet_data[istart:iend, 2], ".")
+ax[1].plot(planet_data[istart:iend, 0], mm(x), "k-")
 ax[1].set_xlabel("frequency [GHz]")
 ax[1].set_ylabel("Tb [K]")
 
 fig.tight_layout()
-fig.savefig(outdir / f"planet_{obsid}.{imgfmt}")
-if pltflg:
+fig.savefig(output_dir / f"planet_info.{image_format}")
+if do_plot:
     plt.show()
 else:
     plt.clf()
@@ -419,7 +374,7 @@ c = xr.DataArray(mm(h.kidfq) * ll(h.kidfq) ** 2 * f_omega_s / omega_mb, dims="ch
 # 7th step: beam FWHM vs frequency
 print("#7: beam FWHM")
 
-fig, ax = plt.subplots(2, 1, figsize=(10, 5))
+fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
 
 hpbw_major = np.sqrt(
     ((h.x_stddev * 3600 * sigma2hpbw) ** 2) - np.log(2) / 2 * theta_s ** 2
@@ -471,8 +426,8 @@ ax[1].set_ylabel("HPBW min [arcsec]")
 ax[1].legend()
 
 fig.tight_layout()
-fig.savefig(outdir / f"beam_{obsid}.{imgfmt}")
-if pltflg:
+fig.savefig(output_dir / f"beam_FWHM.{image_format}")
+if do_plot:
     plt.show()
 else:
     plt.clf()
@@ -500,7 +455,7 @@ print(f"eta_median: {eta_med:.2f}")
 
 alldata["beam_efficiency"] = eta
 
-fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+fig, ax = plt.subplots(1, 1, figsize=(10, 5), dpi=dpi)
 
 ax.errorbar(
     h.kidfq[h.kidtp == 1][np.argsort(h.kidfq.values[h.kidtp == 1])],
@@ -512,15 +467,15 @@ ax.errorbar(
 ax.axhline(eta_med, color="C1", label=f"median: {eta_med:.2f}")
 ax.set_ylim(0, 1)
 ax.set_xlabel("frequency [GHz]")
-ax.set_ylabel("$\eta_{mb}$")
+ax.set_ylabel(r"$\eta_{mb}$")
 ax.legend()
 
 fig.tight_layout()
-fig.savefig(outdir / f"eta_{obsid}.{imgfmt}")
-if pltflg:
+fig.savefig(output_dir / f"beam_efficiency.{image_format}")
+if do_plot:
     plt.show()
 else:
     plt.clf()
     plt.close()
 
-alldata.write(outtxt, format="ascii", overwrite=True)
+alldata.write(result_file, format="ascii", overwrite=True)
