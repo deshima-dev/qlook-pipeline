@@ -1,0 +1,30 @@
+file:
+  output_dir: /Users/tsuyoshi/Documents/deshima-dev/qlook-pipeline/results # output directory
+  result_file: results.txt # file name of result
+  image_format: png        # image format (pdf, png, svg, etc...)
+  do_plot: True           # plot flag (True or False)
+  dpi: 100                 # dpi
+
+loaddfits: # parameters for dc.io.loaddfits()
+  coordtype: azel
+  mode: 0
+  loadtype: temperature
+  findR: True
+  Rth: 250
+  skyth: 130
+  ch: 0
+  cutnum: 1
+
+check_scantypes:
+  tstart0: 0  # time index in the beginning
+  tend0: -1   # time index in the end
+  tstart1: 2000 # time index in the beginning (zoom in)
+  tend1: 2100   # time index in the end (zoom in)
+  refch: 47     # reference channel
+
+fitting: # initial values for the continuum fitting
+  amplitude: 5   # peak value
+  z_mean: -3.5   # mean of z
+  z_stddev: 1.0  # standard deviation of z
+  slope: 0       # slope
+  intercept: 40  # intercept
