@@ -19,6 +19,7 @@ numpy = "^1.18"
 scipy = "^1.4"
 tqdm = "^4.41"
 xarray = "^0.15"
+APLpy = "^2.0.3"
 
 [tool.poetry.dev-dependencies]
 black = "^19.10b0"
