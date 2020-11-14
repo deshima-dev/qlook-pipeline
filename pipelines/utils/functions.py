@@ -6,6 +6,13 @@ from astropy.io import fits
 from astropy import table
 from astropy.modeling import models, fitting
 
+from pandas import date_range
+import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from scipy import signal
+from xarray import DataArray
+from typing import List, Tuple, Union, Optional, Any
+
 from logging import getLogger
 
 logger = getLogger(__name__)
@@ -475,3 +482,127 @@ def gauss_fit(
         )  # <- added
 
     return result
+
+
+def resample_with_equal_dt(
+    scanarray: DataArray,
+    dt_ns: Optional[int] = None,
+    **kwargs: Any
+) -> DataArray:
+    """Resample the data array along the time axis.
+
+    ToDo:
+        * Accept ``numpy.datetime64`` as ``dt_ns``.
+
+    Args:
+        scanarray: Data array to be resampled.
+            Its ``scantype`` should be ``SCAN``.
+        dt_ns: Time spacing in the units of nano second. If ``None`` (by default),
+            it is calculated from ``numpy.mean(numpy.diff(scanrray.time))``.
+        **kwargs: Keyword arguments passed to ``xarray.DataArray.interp``.
+
+    Returns:
+        Resampled data array.
+    """
+
+    if dt_ns is None:
+        dt_ns = np.mean(np.diff(scanarray.time))
+
+    t_start, t_end = scanarray.time[[0, -1]].values
+    t_interp = date_range(t_start, t_end, freq=f"{dt_ns}N", closed="left")
+
+    scanarray.coords["t"] = scanarray.time
+    scanarray_interp = scanarray.interp(t=t_interp, **kwargs)
+    scanarray_interp.coords["time"] = scanarray_interp.t
+    del scanarray.coords["t"]
+    del scanarray_interp.coords["t"]
+
+    # hack
+    scantype_array = np.full_like(scanarray_interp.time, "SCAN", dtype="<U4")
+    scanarray_interp = scanarray_interp.assign_coords(scantype=("t", scantype_array))
+
+    return scanarray_interp
+
+
+def detrend(
+    scanarray: DataArray,
+    periodic_boundary: bool = True,
+    **kwargs: Any
+) -> DataArray:
+    """Remove linear trend from the data array.
+
+    Args:
+        scanarray: Data array to be modeled.
+        periodic_boundary: Flag for periodic boundary condition.
+            If ``True`` (by default), the baseline is linearly estimated from the both edge of the data.
+            If ``False``, ``scipy.signal.detrend`` is called.
+        **kwargs: Keyword arguments passed to ``scipy.signal.detrend``.
+
+    Returns:
+        Data array whose linear trend is removed.
+    """
+
+    if not periodic_boundary:
+        scipy_detrend = dc.xarrayfunc(signal.detrend)
+        return scipy_detrend(scanarray, **kwargs)
+
+    baseline = scanarray[[0, -1]]
+    baseline.coords["t"] = baseline.time
+    baseline = baseline.interp(t=scanarray.time).values
+
+    return scanarray - baseline
+
+
+def plot_filter_response(
+    coefficients: Union[Tuple, List[Tuple]],
+    filtertypes: Union[str, List[str]] = "digital",
+    worN: int = 1024,
+    fs: float = 2 * np.pi,
+    ax: Optional[Axes] = None,
+    **kwargs: Any
+) -> Axes:
+    """Plot frequency response of FIR/IIR filters.
+
+    Args:
+        coefficients: Pair of filter coefficients (numerator and denominator) in tuple.
+            List of tuple is available for multiple filters as well.
+        filtertypes: ``digital`` (by default) for digital filters, "analog" for analog filters.
+        worN: Parameter of ``scipy.signal.freqz`` or ``scipy.signal.freqs``.
+        fs: Sampling frequency passed to ``scipy.signal.freqz``.
+        ax: Matplotlib axes object. If ``None`` (by default), ``matplotlib.pyplot.gca`` is called.
+        **kwargs: Keyword arguments passed to ``ax.plot``.
+
+    Returns:
+        Matplotlib axes object.
+    """
+
+    if ax is None:
+        ax = plt.gca()
+
+    if isinstance(coefficients, tuple):
+        coefficients = [coefficients]
+    n_filter = len(coefficients)
+
+    if isinstance(filtertypes, str):
+        filtertypes = [filtertypes] * n_filter
+    elif len(filtertypes) != n_filter:
+        raise ValueError("Length of filtertypes and coefficients is not matched.")
+
+    for coefficient, filtertype in zip(coefficients, filtertypes):
+        if filtertype == "digital":
+            w, h = signal.freqz(coefficient[0], coefficient[1], worN=worN, fs=fs)
+        elif filtertype == "analog":
+            w, h = signal.freqs(coefficient[0], coefficient[1], worN=worN)
+
+        ax.semilogx(w, 20 * np.log10(np.abs(h)), **kwargs)
+
+    ax.grid(which="both")
+    ax.set_xlabel("Frequency [Hz]")
+    ax.set_ylabel("Amplitude [dB]")
+    ax.set_title("Frequency response of filters")
+
+    return ax
+
+
+def subtract_baseline_by_HPF():
+    pass
