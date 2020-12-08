@@ -1,0 +1,33 @@
+file:
+  output_dir: ~/Documents/deshima-dev/qlook-pipeline/results # output directory
+  result_file: results.txt # file name of result
+  image_format: png        # image format (pdf, png, svg, etc...)
+  do_plot: True            # plot flag (True or False)
+  dpi: 150                 # dpi
+
+loaddfits: # parameters for dc.io.loaddfits()
+  coordtype: azel
+  mode: 0
+  loadtype: temperature
+  findR: True
+  Rth: 280
+  skyth: 200
+  ch: 0
+  cutnum: 20
+
+check_scantypes:
+  tstart0: 0  # time index in the beginning
+  tend0: -1   # time index in the end
+  tstart1: 2000 # time index in the beginning (zoom in)
+  tend1: 2100   # time index in the end (zoom in)
+  refch: 47     # reference channel
+
+imaging:
+  gx: 0.00125 # grid size of x for dc.tocube()
+  gy: 0.00125 # grid size of y for dc.tocube()
+  exchs: [16, 18, 44, 46] # channels to be excluded in makecontinuum()
+
+fitting: # initial values for the continuum fitting
+  x_stddev: 0.003      # standard deviation of x
+  y_stddev: 0.003      # standard deviation of y
+  theta: 1.25          # position angle
