@@ -7,8 +7,10 @@ import yaml
 # dependent packages
 import decode as dc
 import numpy as np
-from scipy.interpolate import interp1d
+from scipy import signal
+import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 from astropy import table
 from astropy.io import fits
 import aplpy
@@ -18,7 +20,7 @@ from utils import functions as fc
 
 # module settings
 warnings.filterwarnings("ignore")
-plt.style.use("seaborn-darkgrid")
+plt.style.use("seaborn-dark")
 plt.style.use("seaborn-muted")
 
 # command line arguments
@@ -34,7 +36,7 @@ with open(yaml_file) as file:
 
 # directory settings
 obsid = dfits_file.name.split("_")[1].split(".")[0]
-output_dir = pathlib.Path(params["file"]["output_dir"]) / obsid
+output_dir = pathlib.Path(params["file"]["output_dir"]).expanduser() / obsid
 if not output_dir.exists():
     output_dir.mkdir(parents=True)
 cont_obs_fits = output_dir / "continuum_obs.fits"
@@ -49,6 +51,7 @@ dpi = params["file"]["dpi"]
 # dc.io.loaddfits parameters
 ch = params["loaddfits"]["ch"]
 array = dc.io.loaddfits(dfits_file, **params["loaddfits"])
+scanarray = array[array.scantype == "SCAN"]
 
 # 1st step: check automatic R/SKY assignment
 print("#1: automatic R/SKY assignment")
@@ -79,6 +82,9 @@ dc.plot.plot_timestream(subarray1, ch, scantypes=["R"], ax=ax[1], **plot_params1
 dc.plot.plot_timestream(subarray1, ch, scantypes=["SCAN"], ax=ax[1], **plot_params1)
 dc.plot.plot_timestream(subarray1, ch, scantypes=["GRAD"], ax=ax[1], **plot_params1)
 
+ax[0].grid(which="both")
+ax[1].grid(which="both")
+
 fig.tight_layout()
 fig.savefig(output_dir / f"time_stream.{image_format}")
 if do_plot:
@@ -87,51 +93,48 @@ else:
     plt.clf()
     plt.close()
 
-# for debug
-import sys
+# plot antenna movements
+fig = plt.figure(figsize=(10, 5), dpi=dpi)
+gs = GridSpec(2, 2)
 
-sys.exit()
+ax = []
+ax.append(fig.add_subplot(gs[0, 0]))
+ax.append(fig.add_subplot(gs[1, 0], sharex=ax[0]))
+ax.append(fig.add_subplot(gs[:, 1]))
+
+dc.plot.plot_tcoords(scanarray[:-20000], ("time", "x"), ax=ax[0])
+dc.plot.plot_tcoords(scanarray[:-20000], ("time", "y"), ax=ax[1])
+dc.plot.plot_tcoords(scanarray[:-20000], ("x", "y"), ax=ax[2])
+
+fig.tight_layout()
+fig.savefig(output_dir / f"antenna_movement.{image_format}")
+if do_plot:
+    plt.show()
+else:
+    plt.clf()
+    plt.close()
 
 # 2nd step: baseline subtraction
 print("#2: baseline subtraction")
+# require chopper calibration?
+scanarray_sky = dc.xarrayfunc(signal.savgol_filter)(scanarray, 1001, 5, axis=0)
+scanarray_cal = scanarray - scanarray_sky
 
-# Tamb = params["calibration"]["Tamb"]
+fig, ax = plt.subplots(1, 1, figsize=(10, 5), dpi=dpi)
 
-times = []
-medians = []
-for sid in np.unique(array.scanid):
-    subarray = array[array.scanid == sid]
-    scantype = np.unique(subarray.scantype)
-    t = subarray.time.values[int(len(subarray) / 2)]
-    if scantype == "SCAN":
-        m0 = subarray[: int(1 / 4 * len(subarray))].median("t").values
-        m1 = subarray[int(3 / 4 * len(subarray)) :].median("t").values
-        times.append(t)
-        medians.append((m0 + m1) / 2)
-        pass
-    elif scantype == "TRAN":
-        times.append(t)
-        medians.append(subarray.median("t").values)
-    elif scantype == "ACC":
-        times.append(t)
-        medians.append(subarray.median("t").values)
+# plot_params = {"linewidth": 0.2}
 
-times = np.array(times).astype(float)
-medians = np.array(medians).astype(float)
-medians[np.isnan(medians)] = 0
+dc.plot.plot_timestream(
+    scanarray[::100], ch, ax=ax, **plot_params0
+)  # plot every 100 points
+dc.plot.plot_timestream(
+    scanarray_sky[::100], ch, ax=ax, **plot_params0
+)  # plot every 100 points
 
-blarray = interp1d(times, medians, axis=0, kind="cubic", fill_value="extrapolate")(
-    array.time.astype(float)
-)
-blarray = dc.full_like(array, blarray)
-scanarray_cal = (Tamb * (array - blarray) / (Tr - blarray))[array.scantype == "SCAN"]
-
-fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
-
-plot_params = {"linewidth": 0.2}
-
-dc.plot.plot_timestream(array, ch, scantypes=["SCAN"], ax=ax[0], **plot_params)
-dc.plot.plot_timestream(scanarray_cal, ch, scantypes=["SCAN"], ax=ax[1], **plot_params)
+ax.set_xlabel("Time offset [s]")
+ax.set_ylabel("Temperature [K]")
+ax.legend()
+ax.grid(which="both")
 
 fig.tight_layout()
 fig.savefig(output_dir / f"baseline_subtraction.{image_format}")
@@ -143,6 +146,10 @@ else:
 
 # 3rd step: make cube/continuum
 print("#3: make cube/continuum")
+
+scanarray_cal.kidtp[[16, 18, 44, 46]] = -1
+scanarray_cal = scanarray_cal.where(scanarray_cal.kidtp == 1, drop=True)
+scanarray_cal = scanarray_cal[:-20000]
 
 gx = params["imaging"]["gx"]
 gy = params["imaging"]["gy"]
@@ -156,23 +163,38 @@ cube_array = dc.tocube(
 )
 dc.io.savefits(cube_array, cube_obs_fits, overwrite=True)
 
-exchs = params["imaging"]["exchs"]
-mask = np.full_like(scanarray_cal.kidid.values, True, dtype=np.bool)
-mask[exchs] = False
-mask[np.where(scanarray_cal.kidtp != 1)] = False
-masked_cube_array = cube_array[:, :, mask]
+# exchs = params["imaging"]["exchs"]
+# mask = np.full_like(scanarray_cal.kidid.values, True, dtype=np.bool)
+# mask[exchs] = False
+# mask[np.where(scanarray_cal.kidtp != 1)] = False
+# masked_cube_array = cube_array[:, :, mask]
 
-weight = dc.ones_like(masked_cube_array)
-cont_array = fc.makecontinuum(masked_cube_array, weight=weight)
+# weight = dc.ones_like(masked_cube_array)
+weight = dc.ones_like(cube_array)
+# cont_array = fc.makecontinuum(masked_cube_array, weight=weight)
+cont_array = fc.makecontinuum(cube_array, weight=weight)
 dc.io.savefits(cont_array, cont_obs_fits, dropdeg=True, overwrite=True)
+
+# fits
+fig = plt.figure(figsize=(5, 5))
+ax = aplpy.FITSFigure(str(cont_obs_fits), figure=fig, subplot=(1, 1, 1))
+
+ax.show_colorscale(cmap="viridis", stretch="linear")
+ax.add_colorbar(width=0.15)
+
+fig.tight_layout()
+fig.savefig(output_dir / f"continuum_image.{image_format}")
+if do_plot:
+    plt.show()
+else:
+    plt.clf()
+    plt.close()
 
 # 4th step: 2D-Gauss fit on the continuum map
 print("#4: 2D-Gauss fit on the continuum map")
 
 alldata = table.QTable(
     names=(
-        "subref_x",
-        "subref_y",
         "peak",
         "x_mean",
         "y_mean",
@@ -246,8 +268,6 @@ else:
 
 alldata.add_row(
     [
-        np.median(array.subref_x),
-        np.median(array.subref_y),
         f.peak,
         f.x_mean,
         f.y_mean,
