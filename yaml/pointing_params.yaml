@@ -19,7 +19,7 @@ check_scantypes:
   tstart0: 0  # time index in the beginning
   tend0: -1   # time index in the end
   tstart1: 2000 # time index in the beginning (zoom in)
-  tend1: 2100   # time index in the end (zoom in)
+  tend1: 2100   #  time index in the end (zoom in)
   refch: 47     # reference channel
 
 imaging:
@@ -28,6 +28,7 @@ imaging:
   exchs: [16, 18, 44, 46] # channels to be excluded in makecontinuum()
 
 fitting: # initial values for the continuum fitting
-  x_stddev: 0.003      # standard deviation of x
-  y_stddev: 0.003      # standard deviation of y
-  theta: 1.25          # position angle
+  x_stddev: 0.006      # standard deviation of x
+  y_stddev: 0.006      # standard deviation of y
+  theta: 0.60357481          # position angle
+  noise: -0.02

@@ -39,7 +39,7 @@ with open(yaml_file) as file:
 
 # directory settings
 obsid = dfits_file.name.split("_")[1].split(".")[0]
-output_dir = pathlib.Path(params["file"]["output_dir"]) / obsid
+output_dir = pathlib.Path(params["file"]["output_dir"]).expanduser() / obsid
 if not output_dir.exists():
     output_dir.mkdir(parents=True)
 cont_obs_fits = output_dir / "continuum_obs.fits"
@@ -289,10 +289,16 @@ for i in iterator:
     cube_res_ch_fits = cube_dir / f"cube_{7+i}_residual.fits"
 
     fits.writeto(
-        cube_obs_ch_fits, cube_array[:, :, 7 + i].values.T, header, overwrite=True,
+        cube_obs_ch_fits,
+        cube_array[:, :, 7 + i].values.T,
+        header,
+        overwrite=True,
     )
     fits.writeto(
-        cube_mod_ch_fits, h[:, :, 7 + i].values.T, header, overwrite=True,
+        cube_mod_ch_fits,
+        h[:, :, 7 + i].values.T,
+        header,
+        overwrite=True,
     )
     fits.writeto(
         cube_res_ch_fits,

@@ -55,6 +55,14 @@ docs = ["sphinx"]
 tests = ["coverage[toml] (>=5.0.2)", "hypothesis", "pytest"]
 
 [[package]]
+name = "asteval"
+version = "0.9.21"
+description = "Safe, minimalistic evaluator of python expression using ast module"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[[package]]
 name = "astropy"
 version = "4.0.1.post1"
 description = "Community-developed python astronomy tools"
@@ -268,6 +276,14 @@ importlib-metadata = {version = "*", markers = "python_version < \"3.8\""}
 mccabe = ">=0.6.0,<0.7.0"
 pycodestyle = ">=2.6.0a1,<2.7.0"
 pyflakes = ">=2.2.0,<2.3.0"
+
+[[package]]
+name = "future"
+version = "0.18.2"
+description = "Clean single-source support for Python 3 and 2"
+category = "main"
+optional = false
+python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
 name = "idna"
@@ -515,6 +531,20 @@ description = "A fast implementation of the Cassowary constraint solver"
 category = "main"
 optional = false
 python-versions = ">=3.6"
+
+[[package]]
+name = "lmfit"
+version = "1.0.1"
+description = "Least-Squares Minimization with Bounds and Constraints"
+category = "main"
+optional = false
+python-versions = ">=3.5"
+
+[package.dependencies]
+asteval = ">=0.9.16"
+numpy = ">=1.16"
+scipy = ">=1.2"
+uncertainties = ">=3.0.1"
 
 [[package]]
 name = "markupsafe"
@@ -1188,6 +1218,23 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "uncertainties"
+version = "3.1.5"
+description = "Transparent calculations with uncertainties on the quantities involved (aka error propagation); fast calculation of derivatives"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+future = "*"
+
+[package.extras]
+all = ["numpy", "sphinx", "nose"]
+docs = ["sphinx"]
+optional = ["numpy"]
+tests = ["nose", "numpy"]
+
+[[package]]
 name = "urllib3"
 version = "1.25.10"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
@@ -1243,7 +1290,7 @@ testing = ["jaraco.itertools", "func-timeout"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.6"
-content-hash = "ddf60e26c7c99c2c863e1e943ce14c8785b3255931d9e480dffad454122f5ee7"
+content-hash = "f8b92f2b550a8142a6cc92a2bed4c626a5212e6a4444c9235ad4ee095d8f444c"
 
 [metadata.files]
 aplpy = [
@@ -1275,6 +1322,9 @@ argon2-cffi = [
     {file = "argon2_cffi-20.1.0-cp37-cp37m-win_amd64.whl", hash = "sha256:6678bb047373f52bcff02db8afab0d2a77d83bde61cfecea7c5c62e2335cb203"},
     {file = "argon2_cffi-20.1.0-cp38-cp38-win32.whl", hash = "sha256:77e909cc756ef81d6abb60524d259d959bab384832f0c651ed7dcb6e5ccdbb78"},
     {file = "argon2_cffi-20.1.0-cp38-cp38-win_amd64.whl", hash = "sha256:9dfd5197852530294ecb5795c97a823839258dfd5eb9420233c7cfedec2058f2"},
+]
+asteval = [
+    {file = "asteval-0.9.21.tar.gz", hash = "sha256:ee14ba2211cda1c76114e3e7b552cdd57e940309203d5f4106e6d6f2c2346a2e"},
 ]
 astropy = [
     {file = "astropy-4.0.1.post1-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:86ccbf614d63440680196c1251cb77abf3df393176aec4f441959d43f28f617d"},
@@ -1461,6 +1511,9 @@ flake8 = [
     {file = "flake8-3.8.3-py2.py3-none-any.whl", hash = "sha256:15e351d19611c887e482fb960eae4d44845013cc142d42896e9862f775d8cf5c"},
     {file = "flake8-3.8.3.tar.gz", hash = "sha256:f04b9fcbac03b0a3e58c0ab3a0ecc462e023a9faf046d57794184028123aa208"},
 ]
+future = [
+    {file = "future-0.18.2.tar.gz", hash = "sha256:b1bead90b70cf6ec3f0710ae53a525360fa360d306a86583adc6bf83a4db537d"},
+]
 idna = [
     {file = "idna-2.10-py2.py3-none-any.whl", hash = "sha256:b97d804b1e9b523befed77c48dacec60e6dcb0b5391d57af6a65a312a90648c0"},
     {file = "idna-2.10.tar.gz", hash = "sha256:b307872f855b18632ce0c21c5e45be78c0ea7ae4c15c828c20788b26921eb3f6"},
@@ -1545,6 +1598,9 @@ kiwisolver = [
     {file = "kiwisolver-1.2.0-cp38-none-win32.whl", hash = "sha256:d069ef4b20b1e6b19f790d00097a5d5d2c50871b66d10075dab78938dc2ee2cf"},
     {file = "kiwisolver-1.2.0-cp38-none-win_amd64.whl", hash = "sha256:18d749f3e56c0480dccd1714230da0f328e6e4accf188dd4e6884bdd06bf02dd"},
     {file = "kiwisolver-1.2.0.tar.gz", hash = "sha256:247800260cd38160c362d211dcaf4ed0f7816afb5efe56544748b21d6ad6d17f"},
+]
+lmfit = [
+    {file = "lmfit-1.0.1.tar.gz", hash = "sha256:d249eb756899360f4d2a544c9458f47fc8f765ac22c09e099530585fd64e286e"},
 ]
 markupsafe = [
     {file = "MarkupSafe-1.1.1-cp27-cp27m-macosx_10_6_intel.whl", hash = "sha256:09027a7803a62ca78792ad89403b1b7a73a01c8cb65909cd876f7fcebd79b161"},
@@ -2107,6 +2163,10 @@ typed-ast = [
     {file = "typed_ast-1.4.1-cp38-cp38-win_amd64.whl", hash = "sha256:fc0fea399acb12edbf8a628ba8d2312f583bdbdb3335635db062fa98cf71fca4"},
     {file = "typed_ast-1.4.1-cp39-cp39-macosx_10_15_x86_64.whl", hash = "sha256:d43943ef777f9a1c42bf4e552ba23ac77a6351de620aa9acf64ad54933ad4d34"},
     {file = "typed_ast-1.4.1.tar.gz", hash = "sha256:8c8aaad94455178e3187ab22c8b01a3837f8ee50e09cf31f1ba129eb293ec30b"},
+]
+uncertainties = [
+    {file = "uncertainties-3.1.5-py2.py3-none-any.whl", hash = "sha256:9c031773afa85e4bc8067f3be257c718eb7dbef7dffd604aeb315ded85c9c325"},
+    {file = "uncertainties-3.1.5.tar.gz", hash = "sha256:9122c1e7e074196883b4a7a946e8482807b2f89675cb5e3798b87e0608ede903"},
 ]
 urllib3 = [
     {file = "urllib3-1.25.10-py2.py3-none-any.whl", hash = "sha256:e7983572181f5e1522d9c98453462384ee92a0be7fac5f1413a1e35c56cc0461"},

@@ -76,6 +76,8 @@ plot_params0 = {"marker": ".", "markersize": 1.0, "linewidth": 0.5}
 plot_params1 = {"marker": ".", "markersize": 1.0, "linestyle": "None"}
 
 dc.plot.plot_timestream(subarray0, ch, scantypes=["SCAN"], ax=ax[0], **plot_params0)
+# dc.plot.plot_timestream(subarray0, ch, ax=ax[0], **plot_params0)
+# dc.plot.plot_timestream(subarray0, ch, scantypes=["R"], ax=ax[0], **plot_params1)
 
 dc.plot.plot_timestream(subarray1, ch, ax=ax[1], **plot_params0)
 dc.plot.plot_timestream(subarray1, ch, scantypes=["R"], ax=ax[1], **plot_params1)
@@ -210,6 +212,7 @@ y_mean = float(cont_array.where(cont_array == cont_array.max(), drop=True).y.val
 x_stddev = params["fitting"]["x_stddev"]
 y_stddev = params["fitting"]["y_stddev"]
 theta = params["fitting"]["theta"]
+noise = params["fitting"]["noise"]
 
 f = fc.gauss_fit(
     cont_array,
@@ -221,6 +224,7 @@ f = fc.gauss_fit(
     x_stddev=x_stddev,
     y_stddev=y_stddev,
     theta=theta,
+    noise=noise
 )
 
 sigma2hpbw = 2 * np.sqrt(2 * np.log(2))

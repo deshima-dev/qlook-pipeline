@@ -440,27 +440,40 @@ def gauss_fit(
         fit_g = fitting.LevMarLSQFitter()
         g = fit_g(g_init, mX, mY, subdata)
 
-        g_init2 = models.Gaussian2D(
-            amplitude=np.nanmax(subdata - g.amplitude_1),
-            x_mean=x_mean,
-            y_mean=y_mean,
-            x_stddev=x_stddev,
-            y_stddev=y_stddev,
-            theta=theta,
-            cov_matrix=cov_matrix,
-            **kwargs
-        )
-        fit_g2 = fitting.LevMarLSQFitter()
-        g2 = fit_g2(g_init2, mX, mY, subdata)
+        # g_init2 = models.Gaussian2D(
+        #     amplitude=np.nanmax(subdata - g.amplitude_1),
+        #     x_mean=x_mean,
+        #     y_mean=y_mean,
+        #     x_stddev=x_stddev,
+        #     y_stddev=y_stddev,
+        #     theta=theta,
+        #     cov_matrix=cov_matrix,
+        #     **kwargs
+        # )
+        # fit_g2 = fitting.LevMarLSQFitter()
+        # g2 = fit_g2(g_init2, mX, mY, subdata)
 
-        results = np.array([g2(mX, mY)])
-        peaks = np.array([g2.amplitude.value])
-        x_means = np.array([g2.x_mean.value])
-        y_means = np.array([g2.y_mean.value])
-        x_stddevs = np.array([g2.x_stddev.value])
-        y_stddevs = np.array([g2.y_stddev.value])
-        thetas = np.array([g2.theta.value])
-        error = np.diag(fit_g2.fit_info["param_cov"]) ** 0.5
+        # results = np.array([g2(mX, mY)])
+        # peaks = np.array([g2.amplitude.value])
+        # x_means = np.array([g2.x_mean.value])
+        # y_means = np.array([g2.y_mean.value])
+        # x_stddevs = np.array([g2.x_stddev.value])
+        # y_stddevs = np.array([g2.y_stddev.value])
+        # thetas = np.array([g2.theta.value])
+        # error = np.diag(fit_g2.fit_info["param_cov"]) ** 0.5
+        # uncerts0 = np.array(error[0])  # <- added
+        # uncerts3 = np.array(error[3])  # <- added
+        # uncerts4 = np.array(error[4])  # <- added
+
+        results = np.array([g(mX, mY)])
+        peaks = np.array([g.amplitude_0.value])
+        x_means = np.array([g.x_mean_0.value])
+        y_means = np.array([g.y_mean_0.value])
+        x_stddevs = np.array([g.x_stddev_0.value])
+        y_stddevs = np.array([g.y_stddev_0.value])
+        thetas = np.array([g.theta_0.value])
+        noises = np.array([g.amplitude_1.value])
+        error = np.diag(fit_g.fit_info["param_cov"]) ** 0.5
         uncerts0 = np.array(error[0])  # <- added
         uncerts3 = np.array(error[3])  # <- added
         uncerts4 = np.array(error[4])  # <- added
@@ -475,6 +488,7 @@ def gauss_fit(
                 "x_stddev": x_stddevs,
                 "y_stddev": y_stddevs,
                 "theta": thetas,
+                "noise": noises,
                 "uncert0": uncerts0,  # <- added
                 "uncert3": uncerts3,  # <- added
                 "uncert4": uncerts4,
