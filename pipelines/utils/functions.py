@@ -320,7 +320,7 @@ def gauss_fit(
     y_stddev=None,
     theta=None,
     cov_matrix=None,
-    noise=0,
+    floor=0,
     **kwargs
 ):
     if chs is None:
@@ -347,7 +347,7 @@ def gauss_fit(
                 theta=theta,
                 cov_matrix=cov_matrix,
                 **kwargs
-            ) + models.Const2D(noise)
+            ) + models.Const2D(floor)
             fit_g = fitting.LevMarLSQFitter()
             g = fit_g(g_init, mX, mY, subdata)
 
@@ -436,7 +436,7 @@ def gauss_fit(
             theta=theta,
             cov_matrix=cov_matrix,
             **kwargs
-        ) + models.Const2D(noise)
+        ) + models.Const2D(floor)
         fit_g = fitting.LevMarLSQFitter()
         g = fit_g(g_init, mX, mY, subdata)
 
@@ -472,11 +472,15 @@ def gauss_fit(
         x_stddevs = np.array([g.x_stddev_0.value])
         y_stddevs = np.array([g.y_stddev_0.value])
         thetas = np.array([g.theta_0.value])
-        noises = np.array([g.amplitude_1.value])
+        floors = np.array([g.amplitude_1.value])
         error = np.diag(fit_g.fit_info["param_cov"]) ** 0.5
-        uncerts0 = np.array(error[0])  # <- added
-        uncerts3 = np.array(error[3])  # <- added
-        uncerts4 = np.array(error[4])  # <- added
+        uncerts0 = np.array(error[0])
+        uncerts1 = np.array(error[1])
+        uncerts2 = np.array(error[2])
+        uncerts3 = np.array(error[3])
+        uncerts4 = np.array(error[4])
+        uncerts5 = np.array(error[5])
+        uncerts6 = np.array(error[6])
 
         result = map_data.copy()
         result.values = np.transpose(results)
@@ -488,12 +492,16 @@ def gauss_fit(
                 "x_stddev": x_stddevs,
                 "y_stddev": y_stddevs,
                 "theta": thetas,
-                "noise": noises,
-                "uncert0": uncerts0,  # <- added
-                "uncert3": uncerts3,  # <- added
-                "uncert4": uncerts4,
+                "floor": floors,
+                "e_peak": uncerts0,
+                "e_x_mean": uncerts1,
+                "e_y_mean": uncerts2,
+                "e_x_stddev": uncerts3,
+                "e_y_stddev": uncerts4,
+                "e_theta": uncerts5,
+                "e_floor": uncerts6,
             }
-        )  # <- added
+        )
 
     return result
 

@@ -1,8 +1,8 @@
 file:
-  output_dir: ~/Documents/deshima-dev/qlook-pipeline/results # output directory
+  output_dir: /home/deshima/raid1/desql/git/qlook-pipeline/test/result #otput directory
   result_file: results.txt # file name of result
   image_format: png        # image format (pdf, png, svg, etc...)
-  do_plot: True            # plot flag (True or False)
+  do_plot: False            # plot flag (True or False)
   dpi: 100                 # dpi
 
 loaddfits: # parameters for dc.io.loaddfits()
@@ -30,5 +30,5 @@ imaging:
 fitting: # initial values for the continuum fitting
   x_stddev: 0.006      # standard deviation of x
   y_stddev: 0.006      # standard deviation of y
-  theta: 0.60357481          # position angle
-  noise: -0.02
+  theta: 0.00          # position angle
+  floor: -0.02

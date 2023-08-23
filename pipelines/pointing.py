@@ -148,8 +148,8 @@ else:
 
 # 3rd step: make cube/continuum
 print("#3: make cube/continuum")
+scanarray_cal.kidtp[list(params["imaging"]["exchs"])] = -1
 
-scanarray_cal.kidtp[[16, 18, 44, 46]] = -1
 scanarray_cal = scanarray_cal.where(scanarray_cal.kidtp == 1, drop=True)
 scanarray_cal = scanarray_cal[:-20000]
 
@@ -160,16 +160,13 @@ xmax = scanarray_cal.x.max().values
 ymin = scanarray_cal.y.min().values
 ymax = scanarray_cal.y.max().values
 
-cube_array = dc.tocube(
-    scanarray_cal, gx=gx, gy=gy, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax
-)
+cube_array = dc.tocube( scanarray_cal, gx=gx, gy=gy, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 dc.io.savefits(cube_array, cube_obs_fits, overwrite=True)
 
-# exchs = params["imaging"]["exchs"]
-# mask = np.full_like(scanarray_cal.kidid.values, True, dtype=np.bool)
-# mask[exchs] = False
-# mask[np.where(scanarray_cal.kidtp != 1)] = False
-# masked_cube_array = cube_array[:, :, mask]
+# exchs = params["imaging"]["exchs"] mask =
+# np.full_like(scanarray_cal.kidid.values, True, dtype=np.bool) mask[exchs] =
+# False mask[np.where(scanarray_cal.kidtp != 1)] = False masked_cube_array =
+# cube_array[:, :, mask]
 
 # weight = dc.ones_like(masked_cube_array)
 weight = dc.ones_like(cube_array)
@@ -178,19 +175,21 @@ cont_array = fc.makecontinuum(cube_array, weight=weight)
 dc.io.savefits(cont_array, cont_obs_fits, dropdeg=True, overwrite=True)
 
 # fits
-fig = plt.figure(figsize=(5, 5))
-ax = aplpy.FITSFigure(str(cont_obs_fits), figure=fig, subplot=(1, 1, 1))
-
-ax.show_colorscale(cmap="viridis", stretch="linear")
-ax.add_colorbar(width=0.15)
-
-fig.tight_layout()
-fig.savefig(output_dir / f"continuum_image.{image_format}")
-if do_plot:
-    plt.show()
-else:
-    plt.clf()
-    plt.close()
+#fig = plt.figure(figsize=(5, 5))
+#ax = aplpy.FITSFigure(str(cont_obs_fits),
+#        figure=fig, subplot=(1, 1, 1))
+#
+#ax.show_colorscale(cmap="viridis", stretch="linear")
+#ax.add_colorbar(width=0.15)
+#
+#fig.tight_layout()
+#fig.savefig(output_dir / f"continuum_image.{image_format}")
+#
+#if do_plot:
+#    plt.show()
+#else:
+#    plt.clf()
+#    plt.close()
 
 # 4th step: 2D-Gauss fit on the continuum map
 print("#4: 2D-Gauss fit on the continuum map")
@@ -203,7 +202,24 @@ alldata = table.QTable(
         "x_stddev",
         "y_stddev",
         "theta",
-    )
+        "e_peak",
+        "e_x_mean",
+        "e_y_mean",
+        "e_x_stddev",
+        "e_y_stddev",
+        "e_theta",
+        "e_floor",
+        "x_mean_arcsec",
+        "e_x_mean_arcsec",
+        "y_mean_arcsec",
+        "e_y_mean_arcsec",
+        "fwhm_major_arcsec",
+        "e_fwhm_major_arcsec",
+        "fwhm_minor_arcsec",
+        "e_fwhm_minor_arcsec",
+        "pa_deg",
+        "e_pa_deg"
+     )
 )
 
 amplitude = float(cont_array.max().values)
@@ -212,7 +228,7 @@ y_mean = float(cont_array.where(cont_array == cont_array.max(), drop=True).y.val
 x_stddev = params["fitting"]["x_stddev"]
 y_stddev = params["fitting"]["y_stddev"]
 theta = params["fitting"]["theta"]
-noise = params["fitting"]["noise"]
+floor = params["fitting"]["floor"]
 
 f = fc.gauss_fit(
     cont_array,
@@ -224,16 +240,29 @@ f = fc.gauss_fit(
     x_stddev=x_stddev,
     y_stddev=y_stddev,
     theta=theta,
-    noise=noise
+    floor=floor
 )
 
-sigma2hpbw = 2 * np.sqrt(2 * np.log(2))
-hpbw_major_arcsec = float(f.x_stddev * 3600 * sigma2hpbw)
-hpbw_major_rad = float(f.x_stddev * sigma2hpbw * np.pi / 180)
-hpbw_minor_arcsec = float(f.y_stddev * 3600 * sigma2hpbw)
-hpbw_minor_rad = float(f.y_stddev * sigma2hpbw * np.pi / 180)
-print(f"hpbw_major: {hpbw_major_arcsec:.1f} [arcsec], {hpbw_major_rad:.1e} [rad]")
-print(f"hpbw_minor: {hpbw_minor_arcsec:.1f} [arcsec], {hpbw_minor_rad:.1e} [rad]")
+sigma2fwhm = 2 * np.sqrt(2 * np.log(2))
+fwhm_major_arcsec = float(f.x_stddev * 3600 * sigma2fwhm)
+fwhm_minor_arcsec = float(f.y_stddev * 3600 * sigma2fwhm)
+e_fwhm_major_arcsec = float(f.e_x_stddev * 3600 * sigma2fwhm)
+e_fwhm_minor_arcsec = float(f.e_y_stddev * 3600 * sigma2fwhm)
+fwhm_major_rad = float(f.x_stddev * sigma2fwhm * np.pi / 180)
+fwhm_minor_rad = float(f.y_stddev * sigma2fwhm * np.pi / 180)
+x_mean_arcsec = float(f.x_mean * 3600)
+e_x_mean_arcsec = float(f.e_x_mean * 3600)
+y_mean_arcsec = float(f.y_mean * 3600)
+e_y_mean_arcsec = float(f.e_y_mean * 3600)
+pa_deg = float(f.theta * 180/np.pi) 
+e_pa_deg = float(f.e_theta * 180/np.pi)
+print(f"Peak: {float(f.peak):.3f}+/-{float(f.e_peak):.3f} [K]")
+print(f"X mean {x_mean_arcsec:.1f}+/-{e_x_mean_arcsec:.1f} [arcsec]")
+print(f"Y mean: {y_mean_arcsec:.1f}+/-{e_y_mean_arcsec:.1f} [arcsec]")
+print(f"fwhm_major: {fwhm_major_arcsec:.1f}+/-{e_fwhm_major_arcsec:.1f} [arcsec]")
+print(f"fwhm_minor: {fwhm_minor_arcsec:.1f}+/-{e_fwhm_minor_arcsec:.1f} [arcsec]")
+print(f"PA: {pa_deg:.1f}+/-{e_pa_deg:.1f} [deg]")
+
 
 header = fits.getheader(cont_obs_fits)
 fits.writeto(cont_mod_fits, f[:, :, 0].values.T, header, overwrite=True)
@@ -278,6 +307,23 @@ alldata.add_row(
         f.x_stddev,
         f.y_stddev,
         f.theta,
-    ]
+        f.e_peak,
+        f.e_x_mean,
+        f.e_y_mean,
+        f.e_x_stddev,
+        f.e_y_stddev,
+        f.e_theta,
+        f.e_floor,
+        x_mean_arcsec,
+        e_x_mean_arcsec,
+        y_mean_arcsec,
+        e_y_mean_arcsec,
+        fwhm_major_arcsec,
+        e_fwhm_major_arcsec,
+        fwhm_minor_arcsec,
+        e_fwhm_minor_arcsec,
+        pa_deg,
+        e_pa_deg
+        ]
 )
 alldata.write(result_file, format="ascii", overwrite=True)

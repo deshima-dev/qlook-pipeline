@@ -1,5 +1,5 @@
 file:
-  output_dir: ~/Documents/deshima-dev/qlook-pipeline/results # output directory (absolute path)
+  output_dir: /home/deshima/raid1/desql/git/qlook-pipeline/test/result # output directory (absolute path)
   result_file: results.txt # file name of result
   image_format: png        # image format (pdf, png, svg, etc...)
   do_plot: False            # plot flag (True or False)
@@ -37,6 +37,3 @@ fitting: # initial values for the continuum fitting
   y_stddev: 0.003      # standard deviation of y
   theta: 1.25          # position angle
 
-planet:
-  istart: 1000 # line index in the beginning of fluxtxt
-  iend: 1100   # line index in the end of fluxtxt

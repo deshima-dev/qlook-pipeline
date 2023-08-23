@@ -15,7 +15,6 @@ from astropy.io import fits
 import astropy.units as u
 import aplpy
 from tqdm import tqdm
-
 # original package
 from utils import functions as fc
 
@@ -27,13 +26,13 @@ plt.style.use("seaborn-muted")
 # command line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("dfits_file", help="DFITS name")
-parser.add_argument("flux_file", help="flux text")
 parser.add_argument("yaml_file", help="parameter file")
+parser.add_argument("flux_file", help="flux list file made by planetFlux")
 args = parser.parse_args()
 
 dfits_file = pathlib.Path(args.dfits_file)
-flux_file = pathlib.Path(args.flux_file)
 yaml_file = pathlib.Path(args.yaml_file)
+flux_file = pathlib.Path(args.flux_file)
 with open(yaml_file) as file:
     params = yaml.load(file, Loader=yaml.SafeLoader)
 
@@ -337,26 +336,22 @@ for i in iterator:
 print("#6: planet properties")
 
 plt.style.use("seaborn-darkgrid")
-
-planet_data = np.loadtxt(flux_file, comments="#", usecols=(1, 2, 3, 4, 5, 6))
-# dtable = table.Table(planet_data)
-istart = params["planet"]["istart"]
-iend = params["planet"]["iend"]
-
+planet_data = np.loadtxt(flux_file, comments="#", usecols=(1, 2, 3, 4))
 fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
-x = np.linspace(300, 399, 100)  # frequency
-ll = interp1d(planet_data[istart:iend, 0], planet_data[istart:iend, 1], kind="cubic")
-theta_s = planet_data[istart:iend, 1].mean()
+#x = np.linspace(300, 399, 100)  # frequency
+x = planet_data[:,0]  # frequency
+ll = interp1d(planet_data[:, 0], planet_data[:, 1], kind="cubic")
+theta_s = planet_data[:, 1].mean()
 
-ax[0].plot(planet_data[istart:iend, 0], planet_data[istart:iend, 1], ".")
-ax[0].plot(planet_data[istart:iend, 0], ll(x), "k-")
+ax[0].plot(planet_data[:, 0], planet_data[:, 1], ".")
+ax[0].plot(planet_data[:, 0], ll(x), "k-")
 ax[0].set_xlabel("frequency [GHz]")
 ax[0].set_ylabel("angular diameter [arcsec]")
 
-mm = interp1d(planet_data[istart:iend, 0], planet_data[istart:iend, 2], kind="cubic")
+mm = interp1d(planet_data[:, 0], planet_data[:, 2], kind="cubic")
 
-ax[1].plot(planet_data[istart:iend, 0], planet_data[istart:iend, 2], ".")
-ax[1].plot(planet_data[istart:iend, 0], mm(x), "k-")
+ax[1].plot(planet_data[:, 0], planet_data[:, 2], ".")
+ax[1].plot(planet_data[:, 0], mm(x), "k-")
 ax[1].set_xlabel("frequency [GHz]")
 ax[1].set_ylabel("Tb [K]")
 
@@ -471,7 +466,7 @@ ax.errorbar(
     label="beam efficiency",
 )
 ax.axhline(eta_med, color="C1", label=f"median: {eta_med:.2f}")
-ax.set_ylim(0, 1)
+ax.set_ylim(0, 1.2)
 ax.set_xlabel("frequency [GHz]")
 ax.set_ylabel(r"$\eta_{mb}$")
 ax.legend()
