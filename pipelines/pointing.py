@@ -10,17 +10,14 @@ import numpy as np
 from scipy import signal
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
 from astropy import table
 from astropy.io import fits
-import aplpy
 
 # original package
 from utils import functions as fc
 
 # module settings
 warnings.filterwarnings("ignore")
-plt.style.use("seaborn-dark")
 plt.style.use("seaborn-muted")
 
 # command line arguments
@@ -39,11 +36,6 @@ obsid = dfits_file.name.split("_")[1].split(".")[0]
 output_dir = pathlib.Path(params["file"]["output_dir"]).expanduser() / obsid
 if not output_dir.exists():
     output_dir.mkdir(parents=True)
-cont_obs_fits = output_dir / "continuum_obs.fits"
-cube_obs_fits = output_dir / "cube_obs.fits"
-cont_mod_fits = output_dir / "continuum_model.fits"
-cont_res_fits = output_dir / "continuum_residual.fits"
-result_file = output_dir / params["file"]["result_file"]
 image_format = params["file"]["image_format"]
 do_plot = params["file"]["do_plot"]
 dpi = params["file"]["dpi"]
@@ -64,57 +56,11 @@ else:
 print(f"scantypes: {scantypes}")
 print(f"Tr: {Tr:.1f} [K]")
 
-fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
-tstart0 = params["check_scantypes"]["tstart0"]
-tend0 = params["check_scantypes"]["tend0"]
-tstart1 = params["check_scantypes"]["tstart1"]
-tend1 = params["check_scantypes"]["tend1"]
-subarray0 = array[tstart0:tend0, :]
-subarray1 = array[tstart1:tend1, :]
-
-plot_params0 = {"marker": ".", "markersize": 1.0, "linewidth": 0.5}
-plot_params1 = {"marker": ".", "markersize": 1.0, "linestyle": "None"}
-
-dc.plot.plot_timestream(subarray0, ch, scantypes=["SCAN"], ax=ax[0], **plot_params0)
-# dc.plot.plot_timestream(subarray0, ch, ax=ax[0], **plot_params0)
-# dc.plot.plot_timestream(subarray0, ch, scantypes=["R"], ax=ax[0], **plot_params1)
-
-dc.plot.plot_timestream(subarray1, ch, ax=ax[1], **plot_params0)
-dc.plot.plot_timestream(subarray1, ch, scantypes=["R"], ax=ax[1], **plot_params1)
-dc.plot.plot_timestream(subarray1, ch, scantypes=["SCAN"], ax=ax[1], **plot_params1)
-dc.plot.plot_timestream(subarray1, ch, scantypes=["GRAD"], ax=ax[1], **plot_params1)
-
-ax[0].grid(which="both")
-ax[1].grid(which="both")
-
-fig.tight_layout()
-fig.savefig(output_dir / f"time_stream.{image_format}")
-if do_plot:
-    plt.show()
-else:
-    plt.clf()
-    plt.close()
+fc.plot_timestream_ch(array, ch, image_name=f"{output_dir}/time_stream_ch{ch}.{image_format}", do_plot=do_plot, dpi=dpi)
 
 # plot antenna movements
-fig = plt.figure(figsize=(10, 5), dpi=dpi)
-gs = GridSpec(2, 2)
 
-ax = []
-ax.append(fig.add_subplot(gs[0, 0]))
-ax.append(fig.add_subplot(gs[1, 0], sharex=ax[0]))
-ax.append(fig.add_subplot(gs[:, 1]))
-
-dc.plot.plot_tcoords(scanarray[:-20000], ("time", "x"), ax=ax[0])
-dc.plot.plot_tcoords(scanarray[:-20000], ("time", "y"), ax=ax[1])
-dc.plot.plot_tcoords(scanarray[:-20000], ("x", "y"), ax=ax[2])
-
-fig.tight_layout()
-fig.savefig(output_dir / f"antenna_movement.{image_format}")
-if do_plot:
-    plt.show()
-else:
-    plt.clf()
-    plt.close()
+fc.plot_antenna_movement(array=scanarray, image_name=f"{output_dir}/antenna_movement.{image_format}", do_plot=do_plot, dpi=dpi) 
 
 # 2nd step: baseline subtraction
 print("#2: baseline subtraction")
@@ -122,36 +68,22 @@ print("#2: baseline subtraction")
 scanarray_sky = dc.xarrayfunc(signal.savgol_filter)(scanarray, 1001, 5, axis=0)
 scanarray_cal = scanarray - scanarray_sky
 
-fig, ax = plt.subplots(1, 1, figsize=(10, 5), dpi=dpi)
 
-# plot_params = {"linewidth": 0.2}
+fc.plot_timestream_cal(array, scanarray_cal, ch, image_name=f"{output_dir}/time_stream_cal_ch{ch}.{image_format}", do_plot=do_plot, dpi=dpi)
 
-dc.plot.plot_timestream(
-    scanarray[::100], ch, ax=ax, **plot_params0
-)  # plot every 100 points
-dc.plot.plot_timestream(
-    scanarray_sky[::100], ch, ax=ax, **plot_params0
-)  # plot every 100 points
-
-ax.set_xlabel("Time offset [s]")
-ax.set_ylabel("Temperature [K]")
-ax.legend()
-ax.grid(which="both")
-
-fig.tight_layout()
-fig.savefig(output_dir / f"baseline_subtraction.{image_format}")
-if do_plot:
-    plt.show()
-else:
-    plt.clf()
-    plt.close()
 
 # 3rd step: make cube/continuum
+
 print("#3: make cube/continuum")
 scanarray_cal.kidtp[list(params["imaging"]["exchs"])] = -1
-
 scanarray_cal = scanarray_cal.where(scanarray_cal.kidtp == 1, drop=True)
-scanarray_cal = scanarray_cal[:-20000]
+scanarray_cal = scanarray_cal[:-20000] # if you remove this, not worked, why?
+
+
+cube_obs_fits = output_dir / "cube_obs.fits"
+cont_obs_fits = output_dir / "continuum_obs.fits"
+cont_mod_fits = output_dir / "continuum_model.fits"
+cont_res_fits = output_dir / "continuum_residual.fits"
 
 gx = params["imaging"]["gx"]
 gy = params["imaging"]["gy"]
@@ -174,156 +106,14 @@ weight = dc.ones_like(cube_array)
 cont_array = fc.makecontinuum(cube_array, weight=weight)
 dc.io.savefits(cont_array, cont_obs_fits, dropdeg=True, overwrite=True)
 
-# fits
-#fig = plt.figure(figsize=(5, 5))
-#ax = aplpy.FITSFigure(str(cont_obs_fits),
-#        figure=fig, subplot=(1, 1, 1))
-#
-#ax.show_colorscale(cmap="viridis", stretch="linear")
-#ax.add_colorbar(width=0.15)
-#
-#fig.tight_layout()
-#fig.savefig(output_dir / f"continuum_image.{image_format}")
-#
-#if do_plot:
-#    plt.show()
-#else:
-#    plt.clf()
-#    plt.close()
 
 # 4th step: 2D-Gauss fit on the continuum map
 print("#4: 2D-Gauss fit on the continuum map")
-
-alldata = table.QTable(
-    names=(
-        "peak",
-        "x_mean",
-        "y_mean",
-        "x_stddev",
-        "y_stddev",
-        "theta",
-        "e_peak",
-        "e_x_mean",
-        "e_y_mean",
-        "e_x_stddev",
-        "e_y_stddev",
-        "e_theta",
-        "e_floor",
-        "x_mean_arcsec",
-        "e_x_mean_arcsec",
-        "y_mean_arcsec",
-        "e_y_mean_arcsec",
-        "fwhm_major_arcsec",
-        "e_fwhm_major_arcsec",
-        "fwhm_minor_arcsec",
-        "e_fwhm_minor_arcsec",
-        "pa_deg",
-        "e_pa_deg"
-     )
-)
-
-amplitude = float(cont_array.max().values)
-x_mean = float(cont_array.where(cont_array == cont_array.max(), drop=True).x.values)
-y_mean = float(cont_array.where(cont_array == cont_array.max(), drop=True).y.values)
+cont_result_file = output_dir / params["file"]["result_file"]
 x_stddev = params["fitting"]["x_stddev"]
 y_stddev = params["fitting"]["y_stddev"]
 theta = params["fitting"]["theta"]
 floor = params["fitting"]["floor"]
 
-f = fc.gauss_fit(
-    cont_array,
-    mode="deg",
-    chs=[0],
-    amplitude=amplitude,
-    x_mean=x_mean,
-    y_mean=y_mean,
-    x_stddev=x_stddev,
-    y_stddev=y_stddev,
-    theta=theta,
-    floor=floor
-)
 
-sigma2fwhm = 2 * np.sqrt(2 * np.log(2))
-fwhm_major_arcsec = float(f.x_stddev * 3600 * sigma2fwhm)
-fwhm_minor_arcsec = float(f.y_stddev * 3600 * sigma2fwhm)
-e_fwhm_major_arcsec = float(f.e_x_stddev * 3600 * sigma2fwhm)
-e_fwhm_minor_arcsec = float(f.e_y_stddev * 3600 * sigma2fwhm)
-fwhm_major_rad = float(f.x_stddev * sigma2fwhm * np.pi / 180)
-fwhm_minor_rad = float(f.y_stddev * sigma2fwhm * np.pi / 180)
-x_mean_arcsec = float(f.x_mean * 3600)
-e_x_mean_arcsec = float(f.e_x_mean * 3600)
-y_mean_arcsec = float(f.y_mean * 3600)
-e_y_mean_arcsec = float(f.e_y_mean * 3600)
-pa_deg = float(f.theta * 180/np.pi) 
-e_pa_deg = float(f.e_theta * 180/np.pi)
-print(f"Peak: {float(f.peak):.3f}+/-{float(f.e_peak):.3f} [K]")
-print(f"X mean {x_mean_arcsec:.1f}+/-{e_x_mean_arcsec:.1f} [arcsec]")
-print(f"Y mean: {y_mean_arcsec:.1f}+/-{e_y_mean_arcsec:.1f} [arcsec]")
-print(f"fwhm_major: {fwhm_major_arcsec:.1f}+/-{e_fwhm_major_arcsec:.1f} [arcsec]")
-print(f"fwhm_minor: {fwhm_minor_arcsec:.1f}+/-{e_fwhm_minor_arcsec:.1f} [arcsec]")
-print(f"PA: {pa_deg:.1f}+/-{e_pa_deg:.1f} [deg]")
-
-
-header = fits.getheader(cont_obs_fits)
-fits.writeto(cont_mod_fits, f[:, :, 0].values.T, header, overwrite=True)
-fits.writeto(
-    cont_res_fits, (cont_array[:, :, 0] - f[:, :, 0]).values.T, header, overwrite=True
-)
-
-fig = plt.figure(figsize=(12, 4), dpi=dpi)
-
-ax = aplpy.FITSFigure(str(cont_obs_fits), figure=fig, subplot=(1, 3, 1))
-ax.show_colorscale(cmap="viridis", stretch="linear")
-ax.add_colorbar(width=0.15)
-ax.set_title("Observation")
-
-ax = aplpy.FITSFigure(str(cont_mod_fits), figure=fig, subplot=(1, 3, 2))
-ax.show_colorscale(cmap="viridis", stretch="linear")
-ax.add_colorbar(width=0.15)
-ax.set_title("Model")
-ax.tick_labels.hide_y()
-ax.axis_labels.hide_y()
-
-ax = aplpy.FITSFigure(str(cont_res_fits), figure=fig, subplot=(1, 3, 3))
-ax.show_colorscale(cmap="viridis", stretch="linear")
-ax.add_colorbar(width=0.15)
-ax.set_title("Residual")
-ax.tick_labels.hide_y()
-ax.axis_labels.hide_y()
-
-plt.tight_layout(pad=4.0, w_pad=0.5)
-plt.savefig(output_dir / f"continuum_model.{image_format}")
-if do_plot:
-    plt.show()
-else:
-    plt.clf()
-    plt.close()
-
-alldata.add_row(
-    [
-        f.peak,
-        f.x_mean,
-        f.y_mean,
-        f.x_stddev,
-        f.y_stddev,
-        f.theta,
-        f.e_peak,
-        f.e_x_mean,
-        f.e_y_mean,
-        f.e_x_stddev,
-        f.e_y_stddev,
-        f.e_theta,
-        f.e_floor,
-        x_mean_arcsec,
-        e_x_mean_arcsec,
-        y_mean_arcsec,
-        e_y_mean_arcsec,
-        fwhm_major_arcsec,
-        e_fwhm_major_arcsec,
-        fwhm_minor_arcsec,
-        e_fwhm_minor_arcsec,
-        pa_deg,
-        e_pa_deg
-        ]
-)
-alldata.write(result_file, format="ascii", overwrite=True)
+f = fc.cont_2d_gaussfit(cont_array, x_stddev=x_stddev, y_stddev=y_stddev, theta=theta, floor=floor, cont_obs_fits=cont_obs_fits, cont_mod_fits=cont_mod_fits, cont_res_fits=cont_res_fits, image_name=f"{output_dir}/continuum_image.{image_format}", result_file=cont_result_file, do_plot=do_plot, dpi=dpi)

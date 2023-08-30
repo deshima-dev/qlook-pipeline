@@ -3,7 +3,7 @@ file:
   result_file: results.txt # file name of result
   image_format: png        # image format (pdf, png, svg, etc...)
   do_plot: False            # plot flag (True or False)
-  dpi: 100                 # dpi
+  dpi: 150                 # dpi
 
 loaddfits: # parameters for dc.io.loaddfits()
   coordtype: azel
@@ -14,13 +14,6 @@ loaddfits: # parameters for dc.io.loaddfits()
   skyth: 200
   ch: 0
   cutnum: 20
-
-check_scantypes:
-  tstart0: 0  # time index in the beginning
-  tend0: -1   # time index in the end
-  tstart1: 2000 # time index in the beginning (zoom in)
-  tend1: 2100   #  time index in the end (zoom in)
-  refch: 47     # reference channel
 
 imaging:
   gx: 0.0006 # grid size of x for dc.tocube()

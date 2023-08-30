@@ -6,8 +6,11 @@ from astropy.io import fits
 from astropy import table
 from astropy.modeling import models, fitting
 
+import aplpy
+
 from pandas import date_range
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 from matplotlib.axes import Axes
 from scipy import signal
 from xarray import DataArray
@@ -628,3 +631,216 @@ def plot_filter_response(
 
 def subtract_baseline_by_HPF():
     pass
+
+
+## 2023 for D2
+def plot_timestream_ch(array, ch, image_name='time_stream.png', do_plot=True, dpi=150):
+    scantypes = np.unique(array.scantype)
+
+    fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
+    plot_params = {"marker": ".", "markersize": 0.5, "linestyle": "None"}
+
+    dc.plot.plot_timestream(array, ch, ax=ax[0], **plot_params)
+    dc.plot.plot_timestream(array, ch, scantypes=["R"], ax=ax[0], **plot_params)
+    dc.plot.plot_timestream(array, ch, scantypes=["JUNK"], ax=ax[0], **plot_params)
+
+    dc.plot.plot_timestream(array, ch, scantypes=["SCAN"], ax=ax[1], **plot_params)
+    dc.plot.plot_timestream(array, ch, scantypes=["TRAN"], ax=ax[1], **plot_params)
+    dc.plot.plot_timestream(array, ch, scantypes=["ACC"], ax=ax[1], **plot_params)
+    dc.plot.plot_timestream(array, ch, scantypes=["GRAD"], ax=ax[1], **plot_params)
+
+    ax[0].grid(which="both")
+    ax[1].grid(which="both")
+
+    fig.tight_layout()
+    fig.savefig(image_name)
+    if do_plot:
+        plt.show()
+    else:
+        plt.clf()
+        plt.close()
+
+def plot_timestream_cal(array, scanarray_cal, ch, image_name='time_stream_cal.png', do_plot=True, dpi=150):
+    fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
+    plot_params = {"marker": ".", "markersize": 0.5, "linestyle": "None"}
+    
+    dc.plot.plot_timestream(array,         ch, scantypes=["SCAN"], ax=ax[0], **plot_params)
+    dc.plot.plot_timestream(scanarray_cal, ch, scantypes=["SCAN"], ax=ax[1], **plot_params)
+
+
+    ax[0].grid(which="both")
+    ax[1].grid(which="both")
+    
+    
+    #get kidtp to renewal title
+    index = np.where(array.kidid == ch)[0]
+    kidtpdict = {0: "wideband", 1: "filter", 2: "blind"}
+    try:
+        kidtp = kidtpdict[int(array.kidtp[index])]
+    except KeyError:
+        kidtp = "filter"
+    
+    ax[0].set_title(f"Raw: ch #{ch} ({kidtp})")
+    ax[1].set_title(f"Calibrated: ch #{ch} ({kidtp})")
+    fig.tight_layout()
+    fig.savefig(image_name)
+    if do_plot:
+        plt.show()
+    else:
+        plt.clf()
+        plt.close()
+
+
+def plot_antenna_movement(array, image_name="antenna_movement.png", do_plot=False, dpi=150):
+    fig = plt.figure(figsize=(10, 5), dpi=dpi)
+    gs = GridSpec(2, 2)
+    ax = []
+    ax.append(fig.add_subplot(gs[0, 0]))
+    ax.append(fig.add_subplot(gs[1, 0], sharex=ax[0]))
+    ax.append(fig.add_subplot(gs[:, 1]))
+    dc.plot.plot_tcoords(array, ("time", "x"), ax=ax[0])
+    dc.plot.plot_tcoords(array, ("time", "y"), ax=ax[1])
+    dc.plot.plot_tcoords(array, ("x", "y"), ax=ax[2])
+
+    fig.tight_layout()
+    fig.savefig(image_name)
+    if do_plot:
+        plt.show()
+    else:
+        plt.clf()
+        plt.close()
+    return fig
+
+
+
+def cont_2d_gaussfit(cont_array, x_stddev=0.006, y_stddev=0.003, theta=0, floor=0, cont_obs_fits='continuum_obs.fits', cont_mod_fits='continuum_mod.fits', cont_res_fits='continuum_ref.fits', image_name='continuum_image.png', result_file='result_continuum.txt', do_plot=True, dpi=150):
+    alldata = table.QTable(
+        names=(
+            "peak",
+            "x_mean",
+            "y_mean",
+            "x_stddev",
+            "y_stddev",
+            "theta",
+            "e_peak",
+            "e_x_mean",
+            "e_y_mean",
+            "e_x_stddev",
+            "e_y_stddev",
+            "e_theta",
+            "e_floor",
+            "x_mean_arcsec",
+            "e_x_mean_arcsec",
+            "y_mean_arcsec",
+            "e_y_mean_arcsec",
+            "fwhm_major_arcsec",
+            "e_fwhm_major_arcsec",
+            "fwhm_minor_arcsec",
+            "e_fwhm_minor_arcsec",
+            "pa_deg",
+            "e_pa_deg"
+         )
+    )
+
+    amplitude = float(cont_array.max().values)
+    x_mean = float(cont_array.where(cont_array == cont_array.max(), drop=True).x.values)
+    y_mean = float(cont_array.where(cont_array == cont_array.max(), drop=True).y.values)
+    f = gauss_fit(
+        cont_array,
+        mode="deg",
+        chs=[0],
+        amplitude=amplitude,
+        x_mean=x_mean,
+        y_mean=y_mean,
+        x_stddev=x_stddev,
+        y_stddev=y_stddev,
+        theta=theta,
+        floor=floor
+        )
+
+    sigma2fwhm = 2 * np.sqrt(2 * np.log(2))
+    fwhm_major_arcsec = float(f.x_stddev * 3600 * sigma2fwhm)
+    fwhm_minor_arcsec = float(f.y_stddev * 3600 * sigma2fwhm)
+    e_fwhm_major_arcsec = float(f.e_x_stddev * 3600 * sigma2fwhm)
+    e_fwhm_minor_arcsec = float(f.e_y_stddev * 3600 * sigma2fwhm)
+    fwhm_major_rad = float(f.x_stddev * sigma2fwhm * np.pi / 180)
+    fwhm_minor_rad = float(f.y_stddev * sigma2fwhm * np.pi / 180)
+    x_mean_arcsec = float(f.x_mean * 3600)
+    e_x_mean_arcsec = float(f.e_x_mean * 3600)
+    y_mean_arcsec = float(f.y_mean * 3600)
+    e_y_mean_arcsec = float(f.e_y_mean * 3600)
+    pa_deg = float(f.theta * 180/np.pi)
+    e_pa_deg = float(f.e_theta * 180/np.pi)
+    print(f"Peak: {float(f.peak):.3f}+/-{float(f.e_peak):.3f} [K]")
+    print(f"X mean {x_mean_arcsec:.1f}+/-{e_x_mean_arcsec:.1f} [arcsec]")
+    print(f"Y mean: {y_mean_arcsec:.1f}+/-{e_y_mean_arcsec:.1f} [arcsec]")
+    print(f"fwhm_major: {fwhm_major_arcsec:.1f}+/-{e_fwhm_major_arcsec:.1f} [arcsec]")
+    print(f"fwhm_minor: {fwhm_minor_arcsec:.1f}+/-{e_fwhm_minor_arcsec:.1f} [arcsec]")
+    print(f"PA: {pa_deg:.1f}+/-{e_pa_deg:.1f} [deg]")
+
+    header = fits.getheader(cont_obs_fits)
+    fits.writeto(cont_mod_fits, f[:, :, 0].values.T, header, overwrite=True)
+    fits.writeto(
+        cont_res_fits, (cont_array[:, :, 0] - f[:, :, 0]).values.T, header, overwrite=True
+    )
+
+
+    fig = plt.figure(figsize=(12, 4), dpi=dpi)
+
+    ax = aplpy.FITSFigure(str(cont_obs_fits), figure=fig, subplot=(1, 3, 1))
+    ax.show_colorscale(cmap="viridis", stretch="linear")
+    ax.add_colorbar(width=0.15)
+    ax.set_title("Observation")
+
+    ax = aplpy.FITSFigure(str(cont_mod_fits), figure=fig, subplot=(1, 3, 2))
+    ax.show_colorscale(cmap="viridis", stretch="linear")
+    ax.add_colorbar(width=0.15)
+    ax.set_title("Model")
+    ax.tick_labels.hide_y()
+    ax.axis_labels.hide_y()
+
+    ax = aplpy.FITSFigure(str(cont_res_fits), figure=fig, subplot=(1, 3, 3))
+    ax.show_colorscale(cmap="viridis", stretch="linear")
+    ax.add_colorbar(width=0.15)
+    ax.set_title("Residual")
+    ax.tick_labels.hide_y()
+    ax.axis_labels.hide_y()
+
+    plt.tight_layout(pad=4.0, w_pad=0.5)
+    plt.savefig(image_name)
+    if do_plot:
+        plt.show()
+    else:
+        plt.clf()
+        plt.close()
+
+    alldata.add_row(
+        [
+            f.peak,
+            f.x_mean,
+            f.y_mean,
+            f.x_stddev,
+            f.y_stddev,
+            f.theta,
+            f.e_peak,
+            f.e_x_mean,
+            f.e_y_mean,
+            f.e_x_stddev,
+            f.e_y_stddev,
+            f.e_theta,
+            f.e_floor,
+            x_mean_arcsec,
+            e_x_mean_arcsec,
+            y_mean_arcsec,
+            e_y_mean_arcsec,
+            fwhm_major_arcsec,
+            e_fwhm_major_arcsec,
+            fwhm_minor_arcsec,
+            e_fwhm_minor_arcsec,
+            pa_deg,
+            e_pa_deg
+            ]
+    )
+    alldata.write(result_file, format="ascii", overwrite=True)
+
+    return f

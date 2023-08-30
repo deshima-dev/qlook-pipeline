@@ -20,7 +20,6 @@ from utils import functions as fc
 
 # module settings
 warnings.filterwarnings("ignore")
-plt.style.use("seaborn-darkgrid")
 plt.style.use("seaborn-muted")
 
 # command line arguments
@@ -41,14 +40,9 @@ obsid = dfits_file.name.split("_")[1].split(".")[0]
 output_dir = pathlib.Path(params["file"]["output_dir"]).expanduser() / obsid
 if not output_dir.exists():
     output_dir.mkdir(parents=True)
-cont_obs_fits = output_dir / "continuum_obs.fits"
-cube_obs_fits = output_dir / "cube_obs.fits"
-cont_mod_fits = output_dir / "continuum_model.fits"
-cont_res_fits = output_dir / "continuum_residual.fits"
 cube_dir = output_dir / "cube"
 if not cube_dir.exists():
     cube_dir.mkdir()
-result_file = output_dir / params["file"]["result_file"]
 image_format = params["file"]["image_format"]
 do_plot = params["file"]["do_plot"]
 dpi = params["file"]["dpi"]
@@ -56,6 +50,7 @@ dpi = params["file"]["dpi"]
 # dc.io.loaddfits parameters
 ch = params["loaddfits"]["ch"]
 array = dc.io.loaddfits(dfits_file, **params["loaddfits"])
+scanarray = array[array.scantype == "SCAN"]
 
 # 1st step: check automatic R/SKY assignment
 print("#1: automatic R/SKY assignment")
@@ -65,33 +60,13 @@ Tr = array[array.scantype == "R"][:, ch].values.mean()
 print(f"scantypes: {scantypes}")
 print(f"Tr: {Tr:.1f} [K]")
 
-fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
-tstart0 = params["check_scantypes"]["tstart0"]
-tend0 = params["check_scantypes"]["tend0"]
-tstart1 = params["check_scantypes"]["tstart1"]
-tend1 = params["check_scantypes"]["tend1"]
-subarray0 = array[tstart0:tend0, :]
-subarray1 = array[tstart1:tend1, :]
 
-plot_params0 = {"marker": ".", "markersize": 1.0, "linewidth": 0.5}
-plot_params1 = {"marker": ".", "markersize": 1.0, "linestyle": "None"}
+fc.plot_timestream_ch(array, ch, image_name=f"{output_dir}/time_stream_ch{ch}.{image_format}", do_plot=do_plot, dpi=dpi)
 
-dc.plot.plot_timestream(subarray0, ch, ax=ax[0], **plot_params0)
-dc.plot.plot_timestream(subarray0, ch, scantypes=["R"], ax=ax[0], **plot_params1)
 
-dc.plot.plot_timestream(subarray1, ch, ax=ax[1], **plot_params0)
-dc.plot.plot_timestream(subarray1, ch, scantypes=["SCAN"], ax=ax[1], **plot_params1)
-dc.plot.plot_timestream(subarray1, ch, scantypes=["TRAN"], ax=ax[1], **plot_params1)
-dc.plot.plot_timestream(subarray1, ch, scantypes=["ACC"], ax=ax[1], **plot_params1)
-dc.plot.plot_timestream(subarray1, ch, scantypes=["GRAD"], ax=ax[1], **plot_params1)
+# plot antenna movements
+fc.plot_antenna_movement(array=scanarray, image_name=f"{output_dir}/antenna_movement.{image_format}", do_plot=do_plot, dpi=dpi)
 
-fig.tight_layout()
-fig.savefig(output_dir / f"time_stream.{image_format}")
-if do_plot:
-    plt.show()
-else:
-    plt.clf()
-    plt.close()
 
 # 2nd step: advanced baseline fit
 print("#2: advanced baseline fit")
@@ -126,25 +101,15 @@ blarray = interp1d(times, medians, axis=0, kind="cubic", fill_value="extrapolate
 blarray = dc.full_like(array, blarray)
 scanarray_cal = (Tamb * (array - blarray) / (Tr - blarray))[array.scantype == "SCAN"]
 
-fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
-refch = params["calibration"]["refch"]
-plot_params = {"linewidth": 0.2}
 
-dc.plot.plot_timestream(array, refch, scantypes=["SCAN"], ax=ax[0], **plot_params)
-dc.plot.plot_timestream(
-    scanarray_cal, refch, scantypes=["SCAN"], ax=ax[1], **plot_params
-)
-
-fig.tight_layout()
-fig.savefig(output_dir / f"baseline_subtraction.{image_format}")
-if do_plot:
-    plt.show()
-else:
-    plt.clf()
-    plt.close()
+fc.plot_timestream_cal(array, scanarray_cal, ch, image_name=f"{output_dir}/time_stream_cal_ch{ch}.{image_format}", do_plot=do_plot, dpi=dpi)
 
 # 3rd step: make cube/continuum
 print("#3: make cube/continuum")
+cube_obs_fits = output_dir / "cube_obs.fits"
+cont_obs_fits = output_dir / "continuum_obs.fits"
+cont_mod_fits = output_dir / "continuum_model.fits"
+cont_res_fits = output_dir / "continuum_residual.fits"
 
 gx = params["imaging"]["gx"]
 gy = params["imaging"]["gy"]
@@ -153,9 +118,7 @@ xmax = scanarray_cal.x.max().values
 ymin = scanarray_cal.y.min().values
 ymax = scanarray_cal.y.max().values
 
-cube_array = dc.tocube(
-    scanarray_cal, gx=gx, gy=gy, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax
-)
+cube_array = dc.tocube(scanarray_cal, gx=gx, gy=gy, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 dc.io.savefits(cube_array, cube_obs_fits, overwrite=True)
 
 exchs = params["imaging"]["exchs"]
@@ -170,71 +133,18 @@ dc.io.savefits(cont_array, cont_obs_fits, dropdeg=True, overwrite=True)
 
 # 4th step: 2D-Gauss fit on the continuum map
 print("#4: 2D-Gauss fit on the continuum map")
+cont_result_file = output_dir / params["file"]["cont_result_file"]
 
-amplitude = float(cont_array.max().values)
-x_mean = float(cont_array.where(cont_array == cont_array.max(), drop=True).x.values)
-y_mean = float(cont_array.where(cont_array == cont_array.max(), drop=True).y.values)
 x_stddev = params["fitting"]["x_stddev"]
 y_stddev = params["fitting"]["y_stddev"]
 theta = params["fitting"]["theta"]
+floor = params["fitting"]["floor"]
 
-f = fc.gauss_fit(
-    cont_array,
-    mode="deg",
-    chs=[0],
-    amplitude=amplitude,
-    x_mean=x_mean,
-    y_mean=y_mean,
-    x_stddev=x_stddev,
-    y_stddev=y_stddev,
-    theta=theta,
-)
-
-sigma2hpbw = 2 * np.sqrt(2 * np.log(2))
-hpbw_major_arcsec = float(f.x_stddev * 3600 * sigma2hpbw)
-hpbw_major_rad = float(f.x_stddev * sigma2hpbw * np.pi / 180)
-hpbw_minor_arcsec = float(f.y_stddev * 3600 * sigma2hpbw)
-hpbw_minor_rad = float(f.y_stddev * sigma2hpbw * np.pi / 180)
-print(f"hpbw_major: {hpbw_major_arcsec:.1f} [arcsec], {hpbw_major_rad:.1e} [rad]")
-print(f"hpbw_minor: {hpbw_minor_arcsec:.1f} [arcsec], {hpbw_minor_rad:.1e} [rad]")
-
-header = fits.getheader(cont_obs_fits)
-fits.writeto(cont_mod_fits, f[:, :, 0].values.T, header, overwrite=True)
-fits.writeto(
-    cont_res_fits, (cont_array[:, :, 0] - f[:, :, 0]).values.T, header, overwrite=True
-)
-
-fig = plt.figure(figsize=(12, 4), dpi=dpi)
-
-ax = aplpy.FITSFigure(str(cont_obs_fits), figure=fig, subplot=(1, 3, 1))
-ax.show_colorscale(cmap="viridis", stretch="linear")
-ax.add_colorbar(width=0.15)
-ax.set_title("Observation")
-
-ax = aplpy.FITSFigure(str(cont_mod_fits), figure=fig, subplot=(1, 3, 2))
-ax.show_colorscale(cmap="viridis", stretch="linear")
-ax.add_colorbar(width=0.15)
-ax.set_title("Model")
-ax.tick_labels.hide_y()
-ax.axis_labels.hide_y()
-
-ax = aplpy.FITSFigure(str(cont_res_fits), figure=fig, subplot=(1, 3, 3))
-ax.show_colorscale(cmap="viridis", stretch="linear")
-ax.add_colorbar(width=0.15)
-ax.set_title("Residual")
-ax.tick_labels.hide_y()
-ax.axis_labels.hide_y()
-
-plt.tight_layout(pad=4.0, w_pad=0.5)
-plt.savefig(output_dir / f"continuum_model.{image_format}")
-if do_plot:
-    plt.show()
-else:
-    plt.clf()
-    plt.close()
+f = fc.cont_2d_gaussfit(cont_array, x_stddev=x_stddev, y_stddev=y_stddev, theta=theta, floor=floor, cont_obs_fits=cont_obs_fits, cont_mod_fits=cont_mod_fits, cont_res_fits=cont_res_fits, image_name=f"{output_dir}/continuum_image.{image_format}", result_file=cont_result_file, do_plot=do_plot, dpi=dpi)
 
 # 5th step: 2D-Gauss fit on the cube map
 print("#5: 2D-Gauss fit on the cube map")
+header = fits.getheader(cont_obs_fits)
 
 alldata = table.QTable()
 
@@ -282,6 +192,7 @@ alldata["y_stddev"] = ystddevdata_sub
 alldata["theta"] = thetadata_sub
 
 iterator = tqdm(range(len(h.kidfq[(h.kidtp != 0) & (h.kidtp != 2)])))
+
 for i in iterator:
     cube_obs_ch_fits = cube_dir / f"cube_{7+i}_obs.fits"
     cube_mod_ch_fits = cube_dir / f"cube_{7+i}_model.fits"
@@ -363,12 +274,14 @@ else:
     plt.clf()
     plt.close()
 
-f_omega_s = 0.7854
+f_omega_s = 0.7854 #???
+sigma2fwhm = 2 * np.sqrt(2 * np.log(2))
+
 omega_mb = float(
     np.pi
     / (4 * np.log(2))
-    * (f.x_stddev * 3600 * sigma2hpbw)
-    * (f.y_stddev * 3600 * sigma2hpbw)
+    * (f.x_stddev * 3600 * sigma2fwhm)
+    * (f.y_stddev * 3600 * sigma2fwhm)
 )  # [arcsec**2]
 c = xr.DataArray(mm(h.kidfq) * ll(h.kidfq) ** 2 * f_omega_s / omega_mb, dims="ch")
 
@@ -378,10 +291,10 @@ print("#7: beam FWHM")
 fig, ax = plt.subplots(2, 1, figsize=(10, 5), dpi=dpi)
 
 hpbw_major = np.sqrt(
-    ((h.x_stddev * 3600 * sigma2hpbw) ** 2) - np.log(2) / 2 * theta_s ** 2
+    ((h.x_stddev * 3600 * sigma2fwhm) ** 2) - np.log(2) / 2 * theta_s ** 2
 )
 hpbw_minor = np.sqrt(
-    ((h.y_stddev * 3600 * sigma2hpbw) ** 2) - np.log(2) / 2 * theta_s ** 2
+    ((h.y_stddev * 3600 * sigma2fwhm) ** 2) - np.log(2) / 2 * theta_s ** 2
 )
 
 hpbw_major_sub = hpbw_major[~np.isnan(freqdata)] * u.arcsec  # deconvolved
@@ -392,15 +305,15 @@ alldata["HPBW_min"] = hpbw_minor_sub
 
 ax[0].errorbar(
     np.sort(h.kidfq),
-    h.x_stddev[np.argsort(h.kidfq)] * 3600 * sigma2hpbw,
-    yerr=h.uncert1[np.argsort(h.kidfq)] * 3600 * sigma2hpbw,
+    h.x_stddev[np.argsort(h.kidfq)] * 3600 * sigma2fwhm,
+    yerr=h.uncert1[np.argsort(h.kidfq)] * 3600 * sigma2fwhm,
     fmt="o-",
     label="raw",
 )
 ax[0].errorbar(
     np.sort(h.kidfq),
     hpbw_major[np.argsort(h.kidfq)],
-    yerr=h.uncert1[np.argsort(h.kidfq)] * 3600 * sigma2hpbw,
+    yerr=h.uncert1[np.argsort(h.kidfq)] * 3600 * sigma2fwhm,
     fmt="o-",
     label="deconvolved",
 )
@@ -410,15 +323,15 @@ ax[0].legend()
 
 ax[1].errorbar(
     np.sort(h.kidfq),
-    h.y_stddev[np.argsort(h.kidfq)] * 3600 * sigma2hpbw,
-    yerr=h.uncert2[np.argsort(h.kidfq)] * 3600 * sigma2hpbw,
+    h.y_stddev[np.argsort(h.kidfq)] * 3600 * sigma2fwhm,
+    yerr=h.uncert2[np.argsort(h.kidfq)] * 3600 * sigma2fwhm,
     fmt="o-",
     label="raw",
 )
 ax[1].errorbar(
     np.sort(h.kidfq),
     hpbw_minor[np.argsort(h.kidfq)],
-    yerr=h.uncert2[np.argsort(h.kidfq)] * 3600 * sigma2hpbw,
+    yerr=h.uncert2[np.argsort(h.kidfq)] * 3600 * sigma2fwhm,
     fmt="o-",
     label="deconvolved",
 )
@@ -479,4 +392,7 @@ else:
     plt.clf()
     plt.close()
 
-alldata.write(result_file, format="ascii", overwrite=True)
+
+
+cube_result_file = output_dir / params["file"]["cont_result_file"]
+alldata.write(cube_result_file, format="ascii", overwrite=True)

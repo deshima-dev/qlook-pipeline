@@ -1,6 +1,6 @@
 # DESHIMA 1.0 raw data
 ## pointing
-- cosmos_20171110114116 (mars_azel_raster_120_d6_t4)
+- cosmos_20171115052750 (uranus_daisy_60_v60)
 ## subref z scan
 - cosmos_20171103184436 (saturn_zscan_cont)
 ## beammap/fluxcal
@@ -8,4 +8,4 @@
 ## skydip
 - cosmos_20171111103248 (skydip_el32-88)
 ## science map
-- cosmos_20171113070539 (orikl_radec_raster_240_d6_t4)# DESHIMA 1.0 raw data
+- cosmos_20171113070539 (orikl_radec_raster_240_d6_t4)

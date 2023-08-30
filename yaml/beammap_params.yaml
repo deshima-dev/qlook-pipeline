@@ -1,6 +1,7 @@
 file:
   output_dir: /home/deshima/raid1/desql/git/qlook-pipeline/test/result # output directory (absolute path)
-  result_file: results.txt # file name of result
+  cont_result_file: results_cont.txt # file name of result
+  cube_result_file: results_cube.txt # file name of result
   image_format: png        # image format (pdf, png, svg, etc...)
   do_plot: False            # plot flag (True or False)
   dpi: 150                 # dpi
@@ -17,15 +18,8 @@ loaddfits: # parameters for dc.io.loaddfits()
   ch: 0
   cutnum: 20
 
-check_scantypes:
-  tstart0: 3000 # time index in the beginning to check the R assignment
-  tend0: 7000   # time index in the end to check the R assingment
-  tstart1: 6700 # time index in the beginning to check the SCAN, TRAN, ACC, and GRAD assignment
-  tend1: 10000  # time index in the end to check the SCAN, TRAN, ACC, and GRAD assignment
-
 calibration:
   Tamb: 273 # ambient temparature for dc.models.chopper_calibration()
-  refch: 30 # reference channel for the calibration check
 
 imaging:
   gx: 0.00125 # grid size of x for dc.tocube()
@@ -35,5 +29,6 @@ imaging:
 fitting: # initial values for the continuum fitting
   x_stddev: 0.003      # standard deviation of x
   y_stddev: 0.003      # standard deviation of y
-  theta: 1.25          # position angle
+  theta: 0.00          # position angle
+  floor: 0.00          # position angle
 
